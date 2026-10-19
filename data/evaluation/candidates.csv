@@ -1,0 +1,789 @@
+id,category,expected_sources,doc_paths,heading_path,passage_text,expected_chunk_keywords,question,reference_answer,history,status,verified_by,relationship,absent_key_term,absent_check_regex
+sl001,single_lookup,kubernetes/pod-lifecycle.md,kubernetes/pod-lifecycle.md,delays between container restarts will always be 2s > Resizing Pods {#pod-resize} > In-place Pod resize {#pod-resize-inplace},"You can resize a Pod's container-level CPU and memory resources without recreating the Pod.
+This is also called _in-place Pod vertical scaling_. This allows you to adjust resource
+allocation for running containers while potentially avoiding application disruption.
+
+If you have specified resources at the pod-level, you can also resize those in-place.
+For more details, see [Resize CPU and Memory Resources assigned to Pods](/docs/tasks/configure-pod-container/resize-pod-resources/).
+
+To perform an in-place resize, you update the Pod's desired state using the `/resize`
+subresource. The kubelet the",you; resize; pod; container-level; cpu; memory,How can you resize a Pod's container-level CPU and memory resources without recreating the Pod to perform an in-place resize?,"You can resize a Pod's container-level CPU and memory resources without recreating the Pod, which is also called in-place Pod vertical scaling. To perform an in-place resize, you update the Pod's desired state using the `/resize` subresource.",[],needs_review,,,,
+sl002,single_lookup,kubernetes/pod-lifecycle.md,kubernetes/pod-lifecycle.md,delays between container restarts will always be 2s > Termination of Pods {#pod-termination} > Forced Pod termination {#pod-termination-forced},"{{< caution >}}
+Forced deletions can be potentially disruptive for some workloads and their Pods.
+{{< /caution >}}
+
+By default, all deletes are graceful within 30 seconds. The `kubectl delete` command supports
+the `--grace-period=<seconds>` option which allows you to override the default and specify your
+own value.
+
+Setting the grace period to `0` forcibly and immediately deletes the Pod from the API
+server. If the Pod was still running on a node, that forcible deletion triggers the kubelet to
+begin immediate cleanup.
+
+Using kubectl, You must specify an additional flag `--force` along with `--",caution; forced; deletions; potentially; disruptive; some,What happens when setting the grace period to 0 forcibly and immediately deletes the Pod from the API server if the Pod was still running on a node?,"By default, all deletes are graceful within 30 seconds. Setting the grace period to `0` forcibly and immediately deletes the Pod from the API server. If the Pod was still running on a node, that forcible deletion triggers the kubelet to begin immediate cleanup.",[],needs_review,,,,
+sl003,single_lookup,kubernetes/init-containers.md,kubernetes/init-containers.md,Understanding init containers > Differences from regular containers,"Init containers support all the fields and features of app containers,
+including resource limits, [volumes](/docs/concepts/storage/volumes/), and security settings. However, the
+resource requests and limits for an init container are handled differently,
+as documented in [Resource sharing within containers](#resource-sharing-within-containers).
+
+Regular init containers (in other words: excluding sidecar containers) do not support the
+`lifecycle`, `livenessProbe`, `readinessProbe`, or `startupProbe` fields. Init containers
+must run to completion before the Pod can be ready; sidecar containers co",init; containers; support; fields; features; app,"Which fields do regular init containers excluding sidecar containers not support, and what must happen before the Pod can be ready?","Regular init containers (in other words: excluding sidecar containers) do not support the `lifecycle`, `livenessProbe`, `readinessProbe`, or `startupProbe` fields. Init containers must run to completion before the Pod can be ready.",[],needs_review,,,,
+sl004,single_lookup,kubernetes/init-containers.md,kubernetes/init-containers.md,Understanding init containers > Detailed behavior,"During Pod startup, the kubelet delays running init containers until the networking
+and storage are ready. Then the kubelet runs the Pod's init containers in the order
+they appear in the Pod's spec.
+
+Each init container must exit successfully before
+the next container starts. If a container fails to start due to the runtime or
+exits with failure, it is retried according to the Pod `restartPolicy`. However,
+if the Pod `restartPolicy` is set to Always, the init containers use
+`restartPolicy` OnFailure.
+
+A Pod cannot be `Ready` until all init containers have succeeded. The ports on an
+init contai",during; pod; startup; kubelet; delays; running,"During Pod startup, if a container fails to start due to the runtime or exits with failure, how is it retried according to the Pod restartPolicy?","If a container fails to start due to the runtime or exits with failure, it is retried according to the Pod `restartPolicy`. However, if the Pod `restartPolicy` is set to Always, the init containers use `restartPolicy` OnFailure.",[],needs_review,,,,
+sl005,single_lookup,kubernetes/sidecar-containers.md,kubernetes/sidecar-containers.md,Sidecar containers in Kubernetes {#pod-sidecar-containers},"Kubernetes implements sidecar containers as a special case of
+[init containers](/docs/concepts/workloads/pods/init-containers/); sidecar containers remain
+running after Pod startup. This document uses the term _regular init containers_ to clearly
+refer to containers that only run during Pod startup.
+
+Provided that your cluster has the `SidecarContainers`
+[feature gate](/docs/reference/command-line-tools-reference/feature-gates/) enabled
+(the feature is active by default since Kubernetes v1.29), you can specify a `restartPolicy`
+for containers listed in a Pod's `initContainers` field.
+These res",kubernetes; implements; sidecar; containers; special; case,"How does Kubernetes implement sidecar containers as a special case of init containers, and what can you specify if your cluster has the SidecarContainers feature gate enabled?","Kubernetes implements sidecar containers as a special case of init containers; sidecar containers remain running after Pod startup. Provided that your cluster has the `SidecarContainers` feature gate enabled, you can specify a `restartPolicy` for containers listed in a Pod's `initContainers` field.",[],needs_review,,,,
+sl006,single_lookup,kubernetes/sidecar-containers.md,kubernetes/sidecar-containers.md,root,"---
+title: Sidecar Containers
+content_type: concept
+weight: 50
+---
+
+<!-- overview -->
+{{< feature-state feature_gate_name=""SidecarContainers"" >}}
+
+Sidecar containers are the secondary containers that run along with the main
+application container within the same {{< glossary_tooltip text=""Pod"" term_id=""pod"" >}}.
+These containers are used to enhance or to extend the functionality of the primary _app
+container_ by providing additional services, or functionality such as logging, monitoring,
+security, or data synchronization, without directly altering the primary application code.
+
+Typically, you o",title; sidecar; containers; content_type; concept; weight,What are sidecar containers used to enhance or to extend the functionality of the primary app container by providing without directly altering the primary application code?,"Sidecar containers are the secondary containers that run along with the main application container within the same Pod. These containers are used to enhance or to extend the functionality of the primary app container by providing additional services, or functionality such as logging, monitoring, security, or data synchronization, without directly altering the primary application code.",[],needs_review,,,,
+sl007,single_lookup,kubernetes/deployment.md,kubernetes/deployment.md,Use Case > Updating a Deployment > Label selector updates,"It is generally discouraged to make label selector updates and it is suggested to plan your selectors up front.
+A Deployment's label selector is **immutable** after creation;
+it cannot be updated via `kubectl patch`, `kubectl edit`, `kubectl apply`, or tools like `helm upgrade`.
+
+If you must change the selector, you have to delete the Deployment and recreate it.
+By default, deleting the Deployment also deletes its running Pods, causing downtime; use
+`--cascade=orphan` if you need those Pods to keep running while you recreate the Deployment
+(see the implications below).
+Exercise great caution a",generally; discouraged; make; label; selector; updates,"Why is a Deployment's label selector immutable after creation, and what flag should you use if you need those Pods to keep running while you recreate the Deployment?","A Deployment's label selector is immutable after creation; it cannot be updated via `kubectl patch`, `kubectl edit`, `kubectl apply`, or tools like `helm upgrade`. By default, deleting the Deployment also deletes its running Pods, causing downtime; use `--cascade=orphan` if you need those Pods to keep running while you recreate the Deployment.",[],needs_review,,,,
+sl008,single_lookup,kubernetes/deployment.md,kubernetes/deployment.md,root,"---
+reviewers:
+- janetkuo
+title: Deployments
+api_metadata:
+- apiVersion: ""apps/v1""
+  kind: ""Deployment""
+feature:
+  title: Automated rollouts and rollbacks
+  description: >
+    Kubernetes progressively rolls out changes to your application or its configuration, while monitoring application health to ensure it doesn't kill all your instances at the same time. If something goes wrong, Kubernetes will rollback the change for you. Take advantage of a growing ecosystem of deployment solutions.
+description: >-
+  A Deployment manages a set of Pods to run an application workload, usually one that doesn",reviewers; janetkuo; title; deployments; api_metadata; apiversion,How does Kubernetes progressively roll out changes to your application or its configuration while monitoring application health?,"Kubernetes progressively rolls out changes to your application or its configuration, while monitoring application health to ensure it doesn't kill all your instances at the same time. If something goes wrong, Kubernetes will rollback the change for you.",[],needs_review,,,,
+sl009,single_lookup,kubernetes/statefulset.md,kubernetes/statefulset.md,root,"---
+reviewers:
+- enisoc
+- erictune
+- foxish
+- janetkuo
+- kow3ns
+- smarterclayton
+title: StatefulSets
+api_metadata:
+- apiVersion: ""apps/v1""
+  kind: ""StatefulSet""
+content_type: concept
+description: >-
+  A StatefulSet runs a group of Pods, and maintains a sticky identity for each of those Pods. This is useful for managing
+  applications that need persistent storage or a stable, unique network identity.
+weight: 30
+hide_summary: true # Listed separately in section index
+---
+
+<!-- overview -->
+
+StatefulSet is the workload API object used to manage stateful applications.
+
+{{< glossary_definition term",reviewers; enisoc; erictune; foxish; janetkuo; kow3ns,"Why is a StatefulSet useful for managing applications that need persistent storage or a stable, unique network identity?","A StatefulSet runs a group of Pods, and maintains a sticky identity for each of those Pods. This is useful for managing applications that need persistent storage or a stable, unique network identity. StatefulSet is the workload API object used to manage stateful applications.",[],needs_review,,,,
+sl010,single_lookup,kubernetes/statefulset.md,kubernetes/statefulset.md,Using StatefulSets > Recreate,"{{< feature-state feature_gate_name=""StatefulSetRecreateStrategy"" >}}
+
+When a StatefulSet's `.spec.updateStrategy.type` is set to `Recreate`, the StatefulSet
+controller deletes all of the StatefulSet's Pods at once and waits for them to terminate
+completely before creating any new Pods from the updated `.spec.template`. Unlike
+[`RollingUpdate`](#rolling-updates), the old and new revisions of a Pod are never running at
+the same time, so this strategy incurs downtime for the duration of the update. This mirrors
+the `Recreate` strategy of Deployments and is useful for applications that cannot run",feature-state; feature_gate_name; statefulsetrecreatestrategy; statefulset; spec; updatestrategy,"What happens when a StatefulSet's .spec.updateStrategy.type is set to Recreate, and why does this strategy incur downtime for the duration of the update?","When a StatefulSet's `.spec.updateStrategy.type` is set to `Recreate`, the StatefulSet controller deletes all of the StatefulSet's Pods at once and waits for them to terminate completely before creating any new Pods. Unlike `RollingUpdate`, the old and new revisions of a Pod are never running at the same time, so this strategy incurs downtime for the duration of the update.",[],needs_review,,,,
+sl011,single_lookup,kubernetes/daemonset.md,kubernetes/daemonset.md,Writing a DaemonSet Spec > Create a DaemonSet,"You can describe a DaemonSet in a YAML file. For example, the `daemonset.yaml` file below
+describes a DaemonSet that runs the fluentd-elasticsearch Docker image:
+
+{{% code_sample file=""controllers/daemonset.yaml"" %}}
+
+Create a DaemonSet based on the YAML file:
+
+```
+kubectl apply -f https://k8s.io/examples/controllers/daemonset.yaml
+```",you; describe; daemonset; yaml; file; example,How can you describe a DaemonSet in a YAML file and create a DaemonSet based on the YAML file?,You can describe a DaemonSet in a YAML file. Create a DaemonSet based on the YAML file using the command: `kubectl apply -f https://k8s.io/examples/controllers/daemonset.yaml`.,[],needs_review,,,,
+sl012,single_lookup,kubernetes/daemonset.md,kubernetes/daemonset.md,Writing a DaemonSet Spec > How Daemon Pods are scheduled > Taints and tolerations,"The DaemonSet controller automatically adds a set of {{< glossary_tooltip
+text=""tolerations"" term_id=""toleration"" >}} to DaemonSet Pods:
+
+{{< table caption=""Tolerations for DaemonSet pods"" >}}
+
+| Toleration key                                                                                                        | Effect       | Details                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | ---",daemonset; controller; automatically; adds; set; glossary_tooltip,What does the DaemonSet controller automatically add to DaemonSet Pods?,The DaemonSet controller automatically adds a set of tolerations to DaemonSet Pods.,[],needs_review,,,,
+sl013,single_lookup,kubernetes/service.md,kubernetes/service.md,Services in Kubernetes > Service type  {#publishing-services-service-types} > `type: NodePort` {#type-nodeport} > Reserve Nodeport ranges to avoid collisions  {#avoid-nodeport-collisions},"The policy for assigning ports to NodePort services applies to both the auto-assignment and
+the manual assignment scenarios. When a user wants to create a NodePort service that
+uses a specific port, the target port may conflict with another port that has already been assigned.
+
+To avoid this problem, the port range for NodePort services is divided into two bands.
+Dynamic port assignment uses the upper band by default, and it may use the lower band once the
+upper band has been exhausted. Users can then allocate from the lower band with a lower risk of port collision.
+
+When using the default Nod",policy; assigning; ports; nodeport; services; applies,"To avoid this problem where the target port may conflict with another port that has already been assigned, how is the port range for NodePort services divided?","To avoid this problem, the port range for NodePort services is divided into two bands. Dynamic port assignment uses the upper band by default, and it may use the lower band once the upper band has been exhausted. Users can then allocate from the lower band with a lower risk of port collision.",[],needs_review,,,,
+sl014,single_lookup,kubernetes/service.md,kubernetes/service.md,Services in Kubernetes > Service type  {#publishing-services-service-types} > `type: NodePort` {#type-nodeport} > `type: NodePort` Services via localhost {#localhost-nodeports},"The mechanisms used by service proxies to implement NodePort Services do not always
+support providing NodePort Services on localhost. For kube-proxy:
+
+  - When using `iptables` mode, with a `--nodeport-addresses` value that includes
+    `127.0.0.1`, NodePort services will be available on `127.0.0.1`. However, this
+    requires enabling a kernel sysctl (`route_localnet`) that may have insecure side
+    effects in some clusters. IPTables localhost NodePorts can be disabled by passing
+    `--iptables-localhost-nodeports false` to kube-proxy, or by setting
+    `--nodeport-addresses` to a range tha",mechanisms; used; service; proxies; implement; nodeport,"When using iptables mode for kube-proxy, why does providing NodePort services on 127.0.0.1 require enabling a kernel sysctl that may have insecure side effects in some clusters?","When using `iptables` mode, with a `--nodeport-addresses` value that includes `127.0.0.1`, NodePort services will be available on `127.0.0.1`. However, this requires enabling a kernel sysctl (`route_localnet`) that may have insecure side effects in some clusters. IPTables localhost NodePorts can be disabled by passing `--iptables-localhost-nodeports false` to kube-proxy.",[],needs_review,,,,
+sl015,single_lookup,kubernetes/ingress.md,kubernetes/ingress.md,Terminology > The Ingress resource > Resource backends {#resource-backend},"A `Resource` backend is an ObjectRef to another Kubernetes resource within the
+same namespace as the Ingress object. A `Resource` is a mutually exclusive
+setting with Service, and will fail validation if both are specified. A common
+usage for a `Resource` backend is to ingress data to an object storage backend
+with static assets.
+
+{{% code_sample file=""service/networking/ingress-resource-backend.yaml"" %}}
+
+After creating the Ingress above, you can view it with the following command:
+
+```bash
+kubectl describe ingress ingress-resource-backend
+```
+
+```
+Name:             ingress-resource-backend
+N",resource; backend; objectref; another; kubernetes; within,"Why will a Resource backend fail validation if both it and a Service are specified, and what is a common usage for a Resource backend?","A `Resource` is a mutually exclusive setting with Service, and will fail validation if both are specified. A common usage for a `Resource` backend is to ingress data to an object storage backend with static assets.",[],needs_review,,,,
+sl016,single_lookup,kubernetes/ingress.md,kubernetes/ingress.md,Terminology > Hostname wildcards,"Hosts can be precise matches (for example “`foo.bar.com`”) or a wildcard (for
+example “`*.foo.com`”). Precise matches require that the HTTP `host` header
+matches the `host` field. Wildcard matches require the HTTP `host` header is
+equal to the suffix of the wildcard rule.
+
+| Host        | Host header       | Match?                                            |
+| ----------- |-------------------| --------------------------------------------------|
+| `*.foo.com` | `bar.foo.com`     | Matches based on shared suffix                    |
+| `*.foo.com` | `baz.bar.foo.com` | No match, wildcard only co",hosts; precise; matches; example; foo; bar,How do precise matches require that the HTTP host header matches the host field compared to wildcard matches?,Precise matches require that the HTTP `host` header matches the `host` field. Wildcard matches require the HTTP `host` header is equal to the suffix of the wildcard rule.,[],needs_review,,,,
+sl017,single_lookup,kubernetes/persistent-volumes.md,kubernetes/persistent-volumes.md,Introduction > Persistent Volumes > Volume Mode,"{{< feature-state for_k8s_version=""v1.18"" state=""stable"" >}}
+
+Kubernetes supports two `volumeModes` of PersistentVolumes: `Filesystem` and `Block`.
+
+`volumeMode` is an optional API parameter.
+`Filesystem` is the default mode used when `volumeMode` parameter is omitted.
+
+A volume with `volumeMode: Filesystem` is *mounted* into Pods into a directory. If the volume
+is backed by a block device and the device is empty, Kubernetes creates a filesystem
+on the device before mounting it for the first time.
+
+You can set the value of `volumeMode` to `Block` to use a volume as a raw block device.
+Such vol",feature-state; for_k8s_version; state; stable; kubernetes; supports,What happens if the volume is backed by a block device and the device is empty when the volumeMode parameter is omitted?,"`Filesystem` is the default mode used when `volumeMode` parameter is omitted. If the volume is backed by a block device and the device is empty, Kubernetes creates a filesystem on the device before mounting it for the first time.",[],needs_review,,,,
+sl018,single_lookup,kubernetes/persistent-volumes.md,kubernetes/persistent-volumes.md,Introduction > Lifecycle of a volume and claim > Reclaiming > Retain,"The `Retain` reclaim policy allows for manual reclamation of the resource.
+When the PersistentVolumeClaim is deleted, the PersistentVolume still exists
+and the volume is considered ""released"". But it is not yet available for
+another claim because the previous claimant's data remains on the volume.
+An administrator can manually reclaim the volume with the following steps.
+
+1. Delete the PersistentVolume. The associated storage asset in external infrastructure
+   still exists after the PV is deleted.
+1. Manually clean up the data on the associated storage asset accordingly.
+1. Manually delete th",retain; reclaim; policy; allows; manual; reclamation,"Why is the volume considered ""released"" but not yet available for another claim when the PersistentVolumeClaim is deleted under the Retain reclaim policy?","When the PersistentVolumeClaim is deleted, the PersistentVolume still exists and the volume is considered ""released"". But it is not yet available for another claim because the previous claimant's data remains on the volume. An administrator can manually reclaim the volume by deleting the PersistentVolume and manually cleaning up the data.",[],needs_review,,,,
+sl019,single_lookup,kubernetes/configmap.md,kubernetes/configmap.md,Motivation > Using ConfigMaps,"ConfigMaps can be mounted as data volumes. ConfigMaps can also be used by other
+parts of the system, without being directly exposed to the Pod. For example,
+ConfigMaps can hold data that other parts of the system should use for configuration.
+
+The most common way to use ConfigMaps is to configure settings for
+containers running in a Pod in the same namespace. You can also use a
+ConfigMap separately.
+
+For example, you
+might encounter {{< glossary_tooltip text=""addons"" term_id=""addons"" >}}
+or {{< glossary_tooltip text=""operators"" term_id=""operator-pattern"" >}} that
+adjust their behavior based on",configmaps; mounted; data; volumes; used; other,What is the most common way to use ConfigMaps to configure settings for containers running in a Pod?,"The most common way to use ConfigMaps is to configure settings for containers running in a Pod in the same namespace. ConfigMaps can also be used by other parts of the system, without being directly exposed to the Pod, to hold data that other parts of the system should use for configuration.",[],needs_review,,,,
+sl020,single_lookup,kubernetes/configmap.md,kubernetes/configmap.md,Motivation > Using ConfigMaps > Using ConfigMaps as files from a Pod,"To consume a ConfigMap in a volume in a Pod:
+
+1. Create a ConfigMap or use an existing one. Multiple Pods can reference the
+   same ConfigMap.
+1. Modify your Pod definition to add a volume under `.spec.volumes[]`. Name
+   the volume anything, and have a `.spec.volumes[].configMap.name` field set
+   to reference your ConfigMap object.
+1. Add a `.spec.containers[].volumeMounts[]` to each container that needs the
+   ConfigMap. Specify `.spec.containers[].volumeMounts[].readOnly = true` and
+   `.spec.containers[].volumeMounts[].mountPath` to an unused directory name
+   where you would like the Con",consume; configmap; volume; pod; create; use,"To consume a ConfigMap in a volume in a Pod, how do you modify your Pod definition to add a volume under .spec.volumes[]?","Modify your Pod definition to add a volume under `.spec.volumes[]`. Name the volume anything, and have a `.spec.volumes[].configMap.name` field set to reference your ConfigMap object. Then add a `.spec.containers[].volumeMounts[]` to each container that needs the ConfigMap, specifying `.spec.containers[].volumeMounts[].readOnly = true` and `.spec.containers[].volumeMounts[].mountPath` to an unused directory name.",[],needs_review,,,,
+sl021,single_lookup,kubernetes/secret.md,kubernetes/secret.md,Uses for Secrets > Working with Secrets > Container image pull Secrets {#using-imagepullsecrets} > Using imagePullSecrets,"The `imagePullSecrets` field is a list of references to Secrets in the same namespace.
+You can use an `imagePullSecrets` to pass a Secret that contains a Docker (or other) image registry
+password to the kubelet. The kubelet uses this information to pull a private image on behalf of your Pod.
+See the [PodSpec API](/docs/reference/generated/kubernetes-api/{{< param ""version"" >}}/#podspec-v1-core)
+for more information about the `imagePullSecrets` field.
+
+##### Manually specifying an imagePullSecret
+
+You can learn how to specify `imagePullSecrets` from the
+[container images](/docs/concepts/contain",imagepullsecrets; field; list; references; secrets; same,How can you use an imagePullSecrets to pass a Secret that contains a Docker image registry password to the kubelet?,"The `imagePullSecrets` field is a list of references to Secrets in the same namespace. You can use an `imagePullSecrets` to pass a Secret that contains a Docker (or other) image registry password to the kubelet, and the kubelet uses this information to pull a private image on behalf of your Pod.",[],needs_review,,,,
+sl022,single_lookup,kubernetes/secret.md,kubernetes/secret.md,Uses for Secrets > Use case: dotfiles in a secret volume,"You can make your data ""hidden"" by defining a key that begins with a dot.
+This key represents a dotfile or ""hidden"" file. For example, when the following Secret
+is mounted into a volume, `secret-volume`, the volume will contain a single file,
+called `.secret-file`, and the `dotfile-test-container` will have this file
+present at the path `/etc/secret-volume/.secret-file`.
+
+{{< note >}}
+Files beginning with dot characters are hidden from the output of `ls -l`;
+you must use `ls -la` to see them when listing directory contents.
+{{< /note >}}
+
+{{% code_sample language=""yaml"" file=""secret/dotfile-se",you; make; your; data; hidden; defining,How can you make your data hidden by defining a key that begins with a dot within a Secret volume?,"You can make your data ""hidden"" by defining a key that begins with a dot. This key represents a dotfile or ""hidden"" file. Files beginning with dot characters are hidden from the output of `ls -l`; you must use `ls -la` to see them when listing directory contents.",[],needs_review,,,,
+sl023,single_lookup,kubernetes/resource-management.md,kubernetes/resource-management.md,Requests and limits > Pod resources example {#example-2},"{{< feature-state feature_gate_name=""PodLevelResources"" >}}
+
+This feature can be enabled by setting the `PodLevelResources` 
+[feature gate](/docs/reference/command-line-tools-reference/feature-gates/).
+The following Pod has an explicit request of 1 CPU and 100 MiB of memory, and an
+explicit limit of 1 CPU and 200 MiB of memory. The `pod-resources-demo-ctr-1`
+container has explicit requests and limits set. However, the
+`pod-resources-demo-ctr-2` container will simply share the resources available
+within the Pod resource boundaries, as it does not have explicit requests and limits
+set.
+
+{{% code",feature-state; feature_gate_name; podlevelresources; feature; enabled; setting,Why will the pod-resources-demo-ctr-2 container simply share the resources available within the Pod resource boundaries?,"The `pod-resources-demo-ctr-2` container will simply share the resources available within the Pod resource boundaries, as it does not have explicit requests and limits set. This feature can be enabled by setting the `PodLevelResources` feature gate.",[],needs_review,,,,
+sl024,single_lookup,kubernetes/resource-management.md,kubernetes/resource-management.md,Requests and limits > Resource types,"A *resource type* has a base unit and can be requested, limited, or both.
+Kubernetes has the following built-in resource types:
+
+| Resource type | Description | Base unit |
+|---|---|---|
+| `cpu` | Compute processing | cpu (core) |
+| `memory` | RAM | Bytes |
+| `ephemeral-storage` | [Local ephemeral storage](/docs/concepts/storage/ephemeral-storage/) | Bytes |
+| `hugepages-<size>` | [Huge pages](#huge-pages) (Linux only) | Bytes |
+
+Clusters can also provide
+[extended resources](/docs/concepts/configuration/manage-resources-containers/#extended-resources)
+(resources with a custom name, typically ",resource; type; base; unit; requested; limited,"What is the base unit for the hugepages-<size> built-in resource type, which is for Linux only?","Kubernetes has the following built-in resource types, and for `hugepages-<size>`, which represents Huge pages (Linux only), the Base unit is Bytes. A resource type has a base unit and can be requested, limited, or both.",[],needs_review,,,,
+sl025,single_lookup,kubernetes/disruptions.md,kubernetes/disruptions.md,Voluntary and involuntary disruptions > PodDisruptionBudget example {#pdb-example},"Consider a cluster with 3 nodes, `node-1` through `node-3`.
+The cluster is running several applications.  One of them has 3 replicas initially called
+`pod-a`, `pod-b`, and `pod-c`.  Another, unrelated pod without a PDB, called `pod-x`, is also shown.
+Initially, the pods are laid out as follows:
+
+|       node-1         |       node-2        |       node-3       |
+|:--------------------:|:-------------------:|:------------------:|
+| pod-a  *available*   | pod-b *available*   | pod-c *available*  |
+| pod-x  *available*   |                     |                    |
+
+All 3 pods are part of a deplo",consider; cluster; nodes; node-1; through; node-3,"When considering a cluster with 3 nodes where initially the pods are laid out as described, which pods are available on node-1?","Initially, the pods are laid out as follows: on `node-1`, `pod-a` is *available* and `pod-x` is *available*.",[],needs_review,,,,
+sl026,single_lookup,kubernetes/disruptions.md,kubernetes/disruptions.md,Voluntary and involuntary disruptions > Dealing with disruptions,"Here are some ways to mitigate involuntary disruptions:
+
+- Ensure your pod [requests the resources](/docs/tasks/configure-pod-container/assign-memory-resource) it needs.
+- Replicate your application if you need higher availability.  (Learn about running replicated
+  [stateless](/docs/tasks/run-application/run-stateless-application-deployment/)
+  and [stateful](/docs/tasks/run-application/run-replicated-stateful-application/) applications.)
+- For even higher availability when running replicated applications,
+  spread applications across racks (using
+  [anti-affinity](/docs/concepts/scheduling-e",here; some; ways; mitigate; involuntary; disruptions,What are some ways to mitigate involuntary disruptions for even higher availability when running replicated applications?,"Here are some ways to mitigate involuntary disruptions: Ensure your pod requests the resources it needs, Replicate your application if you need higher availability, and For even higher availability when running replicated applications, spread applications across racks (using anti-affinity).",[],needs_review,,,,
+sl027,single_lookup,kubernetes/pod-priority-preemption.md,kubernetes/pod-priority-preemption.md,How to use priority and preemption > Preemption > Preemption for in-place Pod resize {#preemption-for-in-place-pod-resize},"{{< feature-state feature_gate_name=""InPlacePodVerticalScalingSchedulerPreemption"" >}}
+
+When the `InPlacePodVerticalScalingSchedulerPreemption` feature gate is enabled,
+preemption also applies when a running Pod's in-place resize request is `Deferred`
+(meaning the requested resize is temporarily not possible, but might become
+feasible later) due to insufficient node capacity.
+For details on resize states, see
+[Pod resize status](/docs/tasks/configure-pod-container/resize-container-resources/#pod-resize-status).
+
+If a higher-priority Pod cannot be resized in-place because its node lacks
+availab",feature-state; feature_gate_name; inplacepodverticalscalingschedulerpreemption; feature; gate; enabled,"When the InPlacePodVerticalScalingSchedulerPreemption feature gate is enabled, why does preemption also apply when a running Pod's in-place resize request is Deferred?","When the `InPlacePodVerticalScalingSchedulerPreemption` feature gate is enabled, preemption also applies when a running Pod's in-place resize request is `Deferred` (meaning the requested resize is temporarily not possible, but might become feasible later) due to insufficient node capacity.",[],needs_review,,,,
+sl028,single_lookup,kubernetes/pod-priority-preemption.md,kubernetes/pod-priority-preemption.md,How to use priority and preemption > Pod priority,"After you have one or more PriorityClasses, you can create Pods that specify one
+of those PriorityClass names in their specifications. The priority admission
+controller uses the `priorityClassName` field and populates the integer value of
+the priority. If the priority class is not found, the Pod is rejected.
+
+The following YAML is an example of a Pod configuration that uses the
+PriorityClass created in the preceding example. The priority admission
+controller checks the specification and resolves the priority of the Pod to
+1000000.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  lab",after; you; one; priorityclasses; create; pods,"After you have one or more PriorityClasses, what happens if the priority class is not found by the priority admission controller?","After you have one or more PriorityClasses, you can create Pods that specify one of those PriorityClass names in their specifications. The priority admission controller uses the `priorityClassName` field and populates the integer value of the priority. If the priority class is not found, the Pod is rejected.",[],needs_review,,,,
+sl029,single_lookup,kubernetes/job.md,kubernetes/job.md,Running an example Job > Integrate with Workload APIs > Scheduling configuration,"The `.spec.scheduling` field accepts the following fields:
+
+- `schedulingPolicy`: exactly one of `basic` or `gang` must be specified. With `gang`, 
+  all Pods must be schedulable together before any of them are bound. An omitted 
+  `gang.minCount` defaults to the Job's `.spec.parallelism`. See
+  [PodGroup scheduling policies](/docs/concepts/workloads/workload-api/policies/).
+- `schedulingConstraints`:
+  [topology](/docs/concepts/workloads/workload-api/topology-aware-scheduling/)
+  co-location constraints for the Job's Pods.
+- `disruptionMode`: whether the Pods are disrupted individually (`sing",spec; scheduling; field; accepts; following; fields,"Under the .spec.scheduling field, if schedulingPolicy is set to gang, what does an omitted gang.minCount default to?","The `.spec.scheduling` field accepts `schedulingPolicy` where exactly one of `basic` or `gang` must be specified. With `gang`, all Pods must be schedulable together before any of them are bound. An omitted `gang.minCount` defaults to the Job's `.spec.parallelism`.",[],needs_review,,,,
+sl030,single_lookup,kubernetes/job.md,kubernetes/job.md,root,"---
+reviewers:
+- erictune
+- mimowo
+- soltysh
+title: Jobs
+api_metadata:
+- apiVersion: ""batch/v1""
+  kind: ""Job""
+content_type: concept
+description: >-
+  Jobs represent one-off tasks that run to completion and then stop.
+feature:
+  title: Batch execution
+  description: >
+    In addition to services, Kubernetes can manage your batch and CI workloads, replacing containers that fail, if desired.
+weight: 50
+hide_summary: true # Listed separately in section index
+---
+
+<!-- overview -->
+
+A Job creates one or more Pods and will continue to retry execution of the Pods until a specified number of them succ",reviewers; erictune; mimowo; soltysh; title; jobs,"What do Jobs represent that run to completion and then stop, and how will a Job continue to retry execution of the Pods?","Jobs represent one-off tasks that run to completion and then stop. A Job creates one or more Pods and will continue to retry execution of the Pods until a specified number of them succeed, and Kubernetes can manage your batch and CI workloads, replacing containers that fail, if desired.",[],needs_review,,,,
+sl031,single_lookup,kubernetes/replicaset.md,kubernetes/replicaset.md,it moved to) > Working with ReplicaSets > ReplicaSet as a Horizontal Pod Autoscaler Target,"A ReplicaSet can also be a target for
+[Horizontal Pod Autoscalers (HPA)](/docs/tasks/run-application/horizontal-pod-autoscale/). That is,
+a ReplicaSet can be auto-scaled by an HPA. Here is an example HPA targeting
+the ReplicaSet we created in the previous example.
+
+{{% code_sample file=""controllers/hpa-rs.yaml"" %}}
+
+Saving this manifest into `hpa-rs.yaml` and submitting it to a Kubernetes cluster should
+create the defined HPA that autoscales the target ReplicaSet depending on the CPU usage
+of the replicated Pods.
+
+```shell
+kubectl apply -f https://k8s.io/examples/controllers/hpa-rs.yaml
+```
+
+A",replicaset; target; horizontal; pod; autoscalers; hpa,"If a ReplicaSet can also be a target for Horizontal Pod Autoscalers (HPA), meaning a ReplicaSet can be auto-scaled by an HPA, what happens when saving this manifest into `hpa-rs.yaml` and submitting it to a Kubernetes cluster?",Saving this manifest into `hpa-rs.yaml` and submitting it to a Kubernetes cluster should create the defined HPA that autoscales the target ReplicaSet depending on the CPU usage of the replicated Pods. A ReplicaSet can also be a target for Horizontal Pod Autoscalers (HPA).,,needs_review,,,,
+sl032,single_lookup,kubernetes/replicaset.md,kubernetes/replicaset.md,"it moved to) > {{% heading ""whatsnext"" %}}","* Learn about [Pods](/docs/concepts/workloads/pods).
+* Learn about [Deployments](/docs/concepts/workloads/controllers/deployment/).
+* [Run a Stateless Application Using a Deployment](/docs/tasks/run-application/run-stateless-application-deployment/),
+  which relies on ReplicaSets to work.
+* `ReplicaSet` is a top-level resource in the Kubernetes REST API.
+  Read the {{< api-reference page=""apps/replica-set-v1"" >}}
+  object definition to understand the API for replica sets.
+* Read about [PodDisruptionBudget](/docs/concepts/workloads/pods/disruptions/) and how
+  you can use it to manage applicati",learn; about; pods; docs; concepts; workloads,"Since a `ReplicaSet` is a top-level resource in the Kubernetes REST API, what relies on ReplicaSets to work when you Run a Stateless Application Using a Deployment?","When you Run a Stateless Application Using a Deployment, it relies on ReplicaSets to work. `ReplicaSet` is a top-level resource in the Kubernetes REST API. Read the api-reference object definition to understand the API for replica sets.",,needs_review,,,,
+sl033,single_lookup,docker/resource-constraints.md,docker/resource-constraints.md,Memory > CPU > Configure the default CFS scheduler,"The CFS is the Linux kernel CPU scheduler for normal Linux processes. Several
+runtime flags let you configure the amount of access to CPU resources your
+container has. When you use these settings, Docker modifies the settings for
+the container's cgroup on the host machine.
+
+| Option                 | Description                                                                                                                                                                                                                                                                                               ",cfs; linux; kernel; cpu; scheduler; normal,"If the CFS is the Linux kernel CPU scheduler for normal Linux processes, what happens when you use runtime flags to configure the amount of access to CPU resources your container has?","When you use runtime flags to configure the amount of access to CPU resources your container has, Docker modifies the settings for the container's cgroup on the host machine. The CFS is the Linux kernel CPU scheduler for normal Linux processes.",,needs_review,,,,
+sl034,single_lookup,docker/resource-constraints.md,docker/resource-constraints.md,Memory > Understand the risks of running out of memory > `--memory-swap` details,"`--memory-swap` is a modifier flag that only has meaning if `--memory` is also
+set. Using swap allows the container to write excess memory requirements to disk
+when the container has exhausted all the RAM that's available to it. There is a
+performance penalty for applications that swap memory to disk often.
+
+Its setting can have complicated effects:
+
+- If `--memory-swap` is set to a positive integer, then both `--memory` and
+  `--memory-swap` must be set. `--memory-swap` represents the total amount of
+  memory and swap that can be used, and `--memory` controls the amount used by
+  non-swap mem",memory-swap; modifier; flag; only; meaning; memory,"Given that `--memory-swap` is a modifier flag that only has meaning if `--memory` is also set, what happens when the container has exhausted all the RAM that's available to it?",Using swap allows the container to write excess memory requirements to disk when the container has exhausted all the RAM that's available to it. `--memory-swap` is a modifier flag that only has meaning if `--memory` is also set.,,needs_review,,,,
+sl035,single_lookup,docker/networking.md,docker/networking.md,root,"---
+title: Networking overview
+linkTitle: Networking
+weight: 30
+description: Learn how networking works from the container's point of view
+keywords: networking, container, standalone, IP address, DNS resolution
+aliases:
+  - /articles/networking/
+  - /config/containers/container-networking/
+  - /engine/tutorials/networkingcontainers/
+  - /engine/userguide/networking/
+  - /engine/userguide/networking/configure-dns/
+  - /engine/userguide/networking/default_network/binding/
+  - /engine/userguide/networking/default_network/configure-dns/
+  - /engine/userguide/networking/default_network/container-co",title; networking; overview; linktitle; weight; description,"In the Networking overview, what description is provided to learn how networking works from the container's point of view, and what are its keywords?","The description is: Learn how networking works from the container's point of view. The keywords are: networking, container, standalone, IP address, DNS resolution.",,needs_review,,,,
+sl036,single_lookup,docker/networking.md,docker/networking.md,User-defined networks > DNS services > Custom hosts,"Your container will have lines in `/etc/hosts` which define the hostname of the
+container itself, as well as `localhost` and a few other common things. Custom
+hosts, defined in `/etc/hosts` on the host machine, aren't inherited by
+containers. To pass additional hosts into a container, refer to [add entries to
+container hosts file](/reference/cli/docker/container/run/#add-host) in the
+`docker run` reference documentation.",your; container; lines; etc; hosts; define,"If custom hosts, defined in `/etc/hosts` on the host machine, aren't inherited by containers, how can you pass additional hosts into a container?","To pass additional hosts into a container, refer to add entries to container hosts file in the `docker run` reference documentation. Custom hosts, defined in `/etc/hosts` on the host machine, aren't inherited by containers.",,needs_review,,,,
+sl037,single_lookup,docker/volumes.md,docker/volumes.md,When to use volumes > Use a volume with Docker Compose > Populate a volume using a container,"If you start a container which creates a new volume, and the container
+has files or directories in the directory to be mounted such as `/app/`,
+Docker copies the directory's contents into the volume. The container then
+mounts and uses the volume, and other containers which use the volume also
+have access to the pre-populated content.
+
+To show this, the following example starts an `nginx` container and
+populates the new volume `nginx-vol` with the contents of the container's
+`/usr/share/nginx/html` directory. This is where Nginx stores its default HTML
+content.
+
+The `--mount` and `-v` examples ",you; start; container; creates; new; volume,"What occurs if you start a container which creates a new volume, and the container has files or directories in the directory to be mounted such as `/app/`?","If you start a container which creates a new volume, and the container has files or directories in the directory to be mounted such as `/app/`, Docker copies the directory's contents into the volume. The container then mounts and uses the volume, and other containers which use the volume also have access to the pre-populated content.",,needs_review,,,,
+sl038,single_lookup,docker/volumes.md,docker/volumes.md,When to use volumes > Use a volume driver,"When you create a volume using `docker volume create`, or when you start a
+container which uses a not-yet-created volume, you can specify a volume driver.
+The following examples use the `rclone/docker-volume-rclone` volume driver, first when creating
+a standalone volume, and then when starting a container which creates a new
+volume.
+
+> [!NOTE]
+>
+> If your volume driver accepts a comma-separated list as an option,
+> you must escape the value from the outer CSV parser. To escape a `volume-opt`,
+> surround it with double quotes (`""`) and surround the entire mount parameter
+> with single quotes (`",you; create; volume; using; docker; start,"When you create a volume using `docker volume create` and your volume driver accepts a comma-separated list as an option, how must you escape the value from the outer CSV parser?","If your volume driver accepts a comma-separated list as an option, you must escape the value from the outer CSV parser. To escape a `volume-opt`, surround it with double quotes (`""`) and surround the entire mount parameter with single quotes.",,needs_review,,,,
+sl039,single_lookup,docker/security.md,docker/security.md,"Use SSH to protect the Docker daemon socket > Use TLS (HTTPS) to protect the Docker daemon socket > Create a CA, server and client keys with OpenSSL","> [!NOTE]
+>
+> Replace all instances of `$HOST` in the following example with the
+> DNS name of your Docker daemon's host.
+
+First, on the Docker daemon's host machine, generate CA private and public keys:
+
+```console
+$ openssl genrsa -aes256 -out ca-key.pem 4096
+Generating RSA private key, 4096 bit long modulus
+..............................................................................++
+........++
+e is 65537 (0x10001)
+Enter pass phrase for ca-key.pem:
+Verifying - Enter pass phrase for ca-key.pem:
+
+$ openssl req -new -x509 -days 365 -key ca-key.pem -sha256 -out ca.pem
+Enter pass phrase for c",note; replace; instances; host; following; example,"How do you generate CA private and public keys on the Docker daemon's host machine, keeping in mind to replace all instances of `$HOST` with the DNS name of your Docker daemon's host?","First, on the Docker daemon's host machine, generate CA private and public keys by running `openssl genrsa -aes256 -out ca-key.pem 4096`. This will output 'Generating RSA private key, 4096 bit long modulus'.",,needs_review,,,,
+sl040,single_lookup,docker/security.md,docker/security.md,Use SSH to protect the Docker daemon socket,"> [!NOTE]
+>
+> The given `USERNAME` must have permissions to access the docker socket on the
+> remote machine. Refer to [manage Docker as a non-root user](../install/linux-postinstall.md#manage-docker-as-a-non-root-user)
+> to learn how to give a non-root user access to the docker socket.
+
+The following example creates a [`docker context`](/manuals/engine/manage-resources/contexts.md)
+to connect with a remote `dockerd` daemon on `host1.example.com` using SSH, and
+as the `docker-user` user on the remote machine:
+
+```console
+$ docker context create \
+    --docker host=ssh://docker-user@host1.examp",note; given; username; must; permissions; access,Why must the given `USERNAME` have permissions to access the docker socket on the remote machine when you connect with a remote `dockerd` daemon on `host1.example.com` using SSH?,The given `USERNAME` must have permissions to access the docker socket on the remote machine. You can refer to manage Docker as a non-root user to learn how to give a non-root user access to the docker socket when you connect with a remote `dockerd` daemon.,,needs_review,,,,
+sl041,single_lookup,docker/compose-env-vars.md,docker/compose-env-vars.md,Use the `environment` attribute > Use the `env_file` attribute,"A container's environment can also be set using [`.env` files](variable-interpolation.md#env-file) along with the [`env_file` attribute](/reference/compose-file/services.md#env_file).
+
+```yaml
+services:
+  webapp:
+    env_file: ""webapp.env""
+```
+
+Using an `.env` file lets you use the same file for use by a plain `docker run --env-file ...` command, or to share the same `.env` file within multiple services without the need to duplicate a long `environment` YAML block.
+
+It can also help you keep your environment variables separate from your main configuration file, providing a more organized and s",container; environment; set; using; env; files,How does using an `.env` file let you use the same file for use by a plain `docker run --env-file ...` command without the need to duplicate a long `environment` YAML block?,"A container's environment can also be set using `.env` files along with the `env_file` attribute. Using an `.env` file lets you use the same file for use by a plain `docker run --env-file ...` command, or to share the same `.env` file within multiple services without the need to duplicate a long `environment` YAML block.",,needs_review,,,,
+sl042,single_lookup,docker/compose-env-vars.md,docker/compose-env-vars.md,Use the `environment` attribute > Additional information,"- You can choose not to set a value and pass the environment variables from your shell straight through to your containers. It works in the same way as `docker run -e VARIABLE ...`:
+  ```yaml
+  web:
+    environment:
+      - DEBUG
+  ```
+The value of the `DEBUG` variable in the container is taken from the value for the same variable in the shell in which Compose is run. Note that in this case no warning is issued if the `DEBUG` variable in the shell environment is not set. 
+
+- You can also take advantage of [interpolation](variable-interpolation.md#interpolation-syntax). In the following example",you; choose; set; value; pass; environment,"If you choose not to set a value and pass the environment variables from your shell straight through to your containers, how is the value of the `DEBUG` variable in the container handled?",The value of the `DEBUG` variable in the container is taken from the value for the same variable in the shell in which Compose is run. Note that in this case no warning is issued if the `DEBUG` variable in the shell environment is not set. You can choose not to set a value and pass the environment variables from your shell straight through to your containers.,,needs_review,,,,
+sl043,single_lookup,docker/bind-mounts.md,docker/bind-mounts.md,When to use bind mounts > Syntax > Options for --mount,"The `--mount` flag consists of multiple key-value pairs, separated by commas
+and each consisting of a `<key>=<value>` tuple. The order of the keys isn't
+significant.
+
+```console
+$ docker run --mount type=bind,src=<host-path>,dst=<container-path>[,<key>=<value>...]
+```
+
+Valid options for `--mount type=bind` include:
+
+| Option                         | Description                                                                                                                                                         |
+| ------------------------------ | ----------------------------------------------",mount; flag; consists; multiple; key-value; pairs,"Given that the `--mount` flag consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple, is the order of the keys significant?","The `--mount` flag consists of multiple key-value pairs, separated by commas and each consisting of a `<key>=<value>` tuple. The order of the keys isn't significant.",,needs_review,,,,
+sl044,single_lookup,docker/bind-mounts.md,docker/bind-mounts.md,When to use bind mounts > Start a container with a bind mount,"Consider a case where you have a directory `source` and that when you build the
+source code, the artifacts are saved into another directory, `source/target/`.
+You want the artifacts to be available to the container at `/app/`, and you
+want the container to get access to a new build each time you build the source
+on your development host. Use the following command to bind-mount the `target/`
+directory into your container at `/app/`. Run the command from within the
+`source` directory. The `$(pwd)` sub-command expands to the current working
+directory on Linux or macOS hosts.
+If you're on Windows,",consider; case; you; directory; source; build,"If you want the container to get access to a new build each time you build the source on your development host, how do you bind-mount the `target/` directory into your container at `/app/`?","You want the artifacts to be available to the container at `/app/`, and you want the container to get access to a new build each time you build the source on your development host. Use the following command to bind-mount the `target/` directory into your container at `/app/`. Run the command from within the `source` directory.",,needs_review,,,,
+sl045,single_lookup,docker/logging.md,docker/logging.md,Configure the default logging driver > Limitations of logging drivers,"- Reading log information requires decompressing rotated log files, which causes
+  a temporary increase in disk usage (until the log entries from the rotated
+  files are read) and an increased CPU usage while decompressing.
+- The capacity of the host storage where the Docker data directory resides
+  determines the maximum size of the log file information.",reading; log; information; requires; decompressing; rotated,"Why does reading log information require decompressing rotated log files, which causes a temporary increase in disk usage and an increased CPU usage while decompressing?","Reading log information requires decompressing rotated log files, which causes a temporary increase in disk usage (until the log entries from the rotated files are read) and an increased CPU usage while decompressing. The capacity of the host storage where the Docker data directory resides determines the maximum size of the log file information.",,needs_review,,,,
+sl046,single_lookup,docker/logging.md,docker/logging.md,Configure the default logging driver > Supported logging drivers,"The following logging drivers are supported. See the link to each driver's
+documentation for its configurable options, if applicable. If you are using
+[logging driver plugins](plugins.md), you may
+see more options.
+
+| Driver                                | Description                                                                                                 |
+| :------------------------------------ | :---------------------------------------------------------------------------------------------------------- |
+| `none`                                | No logs are available for the containe",following; logging; drivers; supported; see; link,"If the following logging drivers are supported, what is the description for the `none` driver regarding whether logs are available for the container?","The following logging drivers are supported. For the `none` Driver, the Description is that No logs are available for the container.",,needs_review,,,,
+sl047,single_lookup,docker/multi-service.md,docker/multi-service.md,syntax=docker/dockerfile:1 > Use a process manager,"Use a process manager like `supervisord`. This is more involved than the other
+options, as it requires you to bundle `supervisord` and its configuration into
+your image (or base your image on one that includes `supervisord`), along with
+the different applications it manages. Then you start `supervisord`, which
+manages your processes for you.
+
+The following Dockerfile example shows this approach. The example assumes that
+these files exist at the root of the build context:
+
+- `supervisord.conf`
+- `my_first_process`
+- `my_second_process`
+
+```dockerfile",use; process; manager; like; supervisord; involved,"Why is it that when you use a process manager like `supervisord`, it is more involved than the other options, as it requires you to bundle `supervisord` and its configuration into your image?","This is more involved than the other options, as it requires you to bundle `supervisord` and its configuration into your image (or base your image on one that includes `supervisord`), along with the different applications it manages. Then you start `supervisord`, which manages your processes for you.",,needs_review,,,,
+sl048,single_lookup,docker/multi-service.md,docker/multi-service.md,syntax=docker/dockerfile:1,"FROM ubuntu:latest
+RUN apt-get update && apt-get install -y supervisor
+RUN mkdir -p /var/log/supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY my_first_process my_first_process
+COPY my_second_process my_second_process
+CMD [""/usr/bin/supervisord""]
+```
+
+If you want to make sure both processes output their `stdout` and `stderr` to
+the container logs, you can add the following to the `supervisord.conf` file:
+
+```ini
+[supervisord]
+nodaemon=true
+logfile=/dev/null
+logfile_maxbytes=0
+
+[program:app]
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+redirect_stderr=true
+```",ubuntu; latest; run; apt-get; update; install,"If you want to make sure both processes output their `stdout` and `stderr` to the container logs, what can you add to the `supervisord.conf` file in the `[program:app]` section?","If you want to make sure both processes output their `stdout` and `stderr` to the container logs, you can add the following to the `supervisord.conf` file: `stdout_logfile=/dev/fd/1`, `stdout_logfile_maxbytes=0`, and `redirect_stderr=true` under `[program:app]`.",,needs_review,,,,
+mh001,multi_hop,kubernetes/deployment.md; docker/resource-constraints.md,kubernetes/deployment.md; docker/resource-constraints.md,kubernetes/deployment.md + docker/resource-constraints.md,"[kubernetes/deployment.md] keywords: resources, limits | [docker/resource-constraints.md] keywords: --memory, cgroup, constraint",resources; limits; --memory; cgroup; constraint,"Considering kubernetes/deployment.md keywords: resources, limits and their mapping to docker/resource-constraints.md keywords: --memory, cgroup, constraint, what is the exact correspondence?","The kubernetes/deployment.md keywords: resources, limits map directly to docker/resource-constraints.md keywords: --memory, cgroup, constraint since Kubernetes resource limits map to Docker cgroup memory/CPU limits.",,needs_review,,Kubernetes resource limits map to Docker cgroup memory/CPU limits,,
+mh002,multi_hop,fastapi/middleware.md; fastapi/cors.md,fastapi/middleware.md; fastapi/cors.md,fastapi/middleware.md + fastapi/cors.md,"[fastapi/middleware.md] keywords: middleware, add_middleware | [fastapi/cors.md] keywords: CORSMiddleware, allow_origins, preflight",middleware; add_middleware; CORSMiddleware; allow_origins; preflight,"In what way do the concepts from fastapi/middleware.md keywords: middleware, add_middleware combine seamlessly with fastapi/cors.md keywords: CORSMiddleware, allow_origins, preflight?","Through fastapi/middleware.md keywords: middleware, add_middleware and fastapi/cors.md keywords: CORSMiddleware, allow_origins, preflight, we understand that CORSMiddleware is a FastAPI middleware; both sit in the request pipeline.",,needs_review,,CORSMiddleware is a FastAPI middleware; both sit in the request pipeline,,
+mh003,multi_hop,fastapi/background-tasks.md; kubernetes/job.md,fastapi/background-tasks.md; kubernetes/job.md,fastapi/background-tasks.md + kubernetes/job.md,"[fastapi/background-tasks.md] keywords: BackgroundTasks, add_task, background | [kubernetes/job.md] keywords: Job, completions, parallelism",BackgroundTasks; add_task; background; Job; completions; parallelism,"If you want to handle asynchronous workloads, what is the distinction between using fastapi/background-tasks.md keywords: BackgroundTasks, add_task, background compared to kubernetes/job.md keywords: Job, completions, parallelism?","By analyzing fastapi/background-tasks.md keywords: BackgroundTasks, add_task, background alongside kubernetes/job.md keywords: Job, completions, parallelism, the difference highlighted is FastAPI BackgroundTasks vs Kubernetes Jobs for async work.",,needs_review,,FastAPI BackgroundTasks vs Kubernetes Jobs for async work,,
+mh004,multi_hop,kubernetes/statefulset.md; kubernetes/persistent-volumes.md,kubernetes/statefulset.md; kubernetes/persistent-volumes.md,kubernetes/statefulset.md + kubernetes/persistent-volumes.md,"[kubernetes/statefulset.md] keywords: volumeClaimTemplates, statefulset | [kubernetes/persistent-volumes.md] keywords: PersistentVolumeClaim, PersistentVolume",volumeClaimTemplates; statefulset; PersistentVolumeClaim; PersistentVolume,"For stateful applications, how do kubernetes/statefulset.md keywords: volumeClaimTemplates, statefulset interact with storage definitions found in kubernetes/persistent-volumes.md keywords: PersistentVolumeClaim, PersistentVolume?","With kubernetes/statefulset.md keywords: volumeClaimTemplates, statefulset and kubernetes/persistent-volumes.md keywords: PersistentVolumeClaim, PersistentVolume, the core mechanism is that StatefulSets use PVCs which bind to PersistentVolumes.",,needs_review,,StatefulSets use PVCs which bind to PersistentVolumes,,
+mh005,multi_hop,docker/bind-mounts.md; docker/volumes.md,docker/bind-mounts.md; docker/volumes.md,docker/bind-mounts.md + docker/volumes.md,"[docker/bind-mounts.md] keywords: bind, --mount, source | [docker/volumes.md] keywords: volume, create, managed",bind; --mount; source; volume; create; managed,"When configuring container data, what do docker/bind-mounts.md keywords: bind, --mount, source reveal when contrasted against docker/volumes.md keywords: volume, create, managed?","The comparison between docker/bind-mounts.md keywords: bind, --mount, source and docker/volumes.md keywords: volume, create, managed essentially shows Bind mounts vs volumes: host path vs managed Docker storage.",,needs_review,,Bind mounts vs volumes: host path vs managed Docker storage,,
+mh006,multi_hop,docker/volumes.md; kubernetes/persistent-volumes.md,docker/volumes.md; kubernetes/persistent-volumes.md,docker/volumes.md + kubernetes/persistent-volumes.md,"[docker/volumes.md] keywords: volume, mount, bind | [kubernetes/persistent-volumes.md] keywords: PersistentVolume, accessModes, StorageClass",volume; mount; bind; PersistentVolume; accessModes; StorageClass,"How does the approach in docker/volumes.md keywords: volume, mount, bind differ from cluster-wide storage seen in kubernetes/persistent-volumes.md keywords: PersistentVolume, accessModes, StorageClass?","Evaluating docker/volumes.md keywords: volume, mount, bind against kubernetes/persistent-volumes.md keywords: PersistentVolume, accessModes, StorageClass demonstrates Docker volumes vs Kubernetes PersistentVolumes for persistent storage.",,needs_review,,Docker volumes vs Kubernetes PersistentVolumes for persistent storage,,
+mh007,multi_hop,kubernetes/ingress.md; fastapi/cors.md,kubernetes/ingress.md; fastapi/cors.md,kubernetes/ingress.md + fastapi/cors.md,"[kubernetes/ingress.md] keywords: Ingress, tls, host | [fastapi/cors.md] keywords: CORS, origins, CORSMiddleware",Ingress; tls; host; CORS; origins; CORSMiddleware,"During external traffic routing, what relationship bridges kubernetes/ingress.md keywords: Ingress, tls, host and the application-level fastapi/cors.md keywords: CORS, origins, CORSMiddleware?","The link between kubernetes/ingress.md keywords: Ingress, tls, host and fastapi/cors.md keywords: CORS, origins, CORSMiddleware is that Ingress terminates TLS/routes; FastAPI CORS controls allowed origins.",,needs_review,,Ingress terminates TLS/routes; FastAPI CORS controls allowed origins,,
+mh008,multi_hop,kubernetes/daemonset.md; docker/logging.md,kubernetes/daemonset.md; docker/logging.md,kubernetes/daemonset.md + docker/logging.md,"[kubernetes/daemonset.md] keywords: DaemonSet, node, tolerations | [docker/logging.md] keywords: logging, log-driver, json-file",DaemonSet; node; tolerations; logging; log-driver; json-file,"To implement cluster-wide logging, how do kubernetes/daemonset.md keywords: DaemonSet, node, tolerations synergize with docker/logging.md keywords: logging, log-driver, json-file?","The synergy of kubernetes/daemonset.md keywords: DaemonSet, node, tolerations and docker/logging.md keywords: logging, log-driver, json-file is defined as: DaemonSets deploy log collectors; Docker logging drives the output.",,needs_review,,DaemonSets deploy log collectors; Docker logging drives the output,,
+mh009,multi_hop,fastapi/response-model.md; fastapi/handling-errors.md,fastapi/response-model.md; fastapi/handling-errors.md,fastapi/response-model.md + fastapi/handling-errors.md,"[fastapi/response-model.md] keywords: response_model, exclude | [fastapi/handling-errors.md] keywords: HTTPException, handler",response_model; exclude; HTTPException; handler,"When designing a resilient API, what do fastapi/response-model.md keywords: response_model, exclude and fastapi/handling-errors.md keywords: HTTPException, handler dictate about endpoint behavior?","Focusing on fastapi/response-model.md keywords: response_model, exclude and fastapi/handling-errors.md keywords: HTTPException, handler, the pattern is Response models shape success responses; error handlers shape failures.",,needs_review,,Response models shape success responses; error handlers shape failures,,
+mh010,multi_hop,kubernetes/service.md; docker/networking.md,kubernetes/service.md; docker/networking.md,kubernetes/service.md + docker/networking.md,"[kubernetes/service.md] keywords: ClusterIP, NodePort, selector | [docker/networking.md] keywords: bridge, network, port",ClusterIP; NodePort; selector; bridge; network; port,"If we compare network exposure methods, what parallels exist between kubernetes/service.md keywords: ClusterIP, NodePort, selector and the standalone docker/networking.md keywords: bridge, network, port?","Looking closely at kubernetes/service.md keywords: ClusterIP, NodePort, selector and docker/networking.md keywords: bridge, network, port reveals that K8s Services provide stable endpoints; compare to Docker bridge networks.",,needs_review,,K8s Services provide stable endpoints; compare to Docker bridge networks,,
+mh011,multi_hop,kubernetes/secret.md; fastapi/security.md,kubernetes/secret.md; fastapi/security.md,kubernetes/secret.md + fastapi/security.md,"[kubernetes/secret.md] keywords: Secret, base64, env | [fastapi/security.md] keywords: OAuth2, token",Secret; base64; env; OAuth2; token,"For secure token validation, how do the infrastructure concepts in kubernetes/secret.md keywords: Secret, base64, env feed into fastapi/security.md keywords: OAuth2, token?","The flow from kubernetes/secret.md keywords: Secret, base64, env to fastapi/security.md keywords: OAuth2, token exists because K8s Secrets hold API keys consumed by FastAPI security dependencies.",,needs_review,,K8s Secrets hold API keys consumed by FastAPI security dependencies,,
+mh012,multi_hop,kubernetes/job.md; kubernetes/pod-lifecycle.md,kubernetes/job.md; kubernetes/pod-lifecycle.md,kubernetes/job.md + kubernetes/pod-lifecycle.md,"[kubernetes/job.md] keywords: Job, completions, backoffLimit | [kubernetes/pod-lifecycle.md] keywords: Succeeded, Failed, phase",Job; completions; backoffLimit; Succeeded; Failed; phase,"In managing batch jobs, how do the high-level kubernetes/job.md keywords: Job, completions, backoffLimit rely on low-level kubernetes/pod-lifecycle.md keywords: Succeeded, Failed, phase?","Connecting kubernetes/job.md keywords: Job, completions, backoffLimit with kubernetes/pod-lifecycle.md keywords: Succeeded, Failed, phase illustrates that the Job controller creates pods whose lifecycle drives Job completion.",,needs_review,,Job controller creates pods whose lifecycle drives Job completion,,
+mh013,multi_hop,sqlalchemy/engine.md; postgresql/postgres-official.md,sqlalchemy/engine.md; postgresql/postgres-official.md,sqlalchemy/engine.md + postgresql/postgres-official.md,"[sqlalchemy/engine.md] keywords: create_engine, connection, URL | [postgresql/postgres-official.md] keywords: port, pg_hba, connection",create_engine; connection; URL; port; pg_hba; connection,"Could you explain the link between the [sqlalchemy/engine.md] keywords: create_engine, connection, URL and the server-side [postgresql/postgres-official.md] keywords: port, pg_hba, connection?","The [sqlalchemy/engine.md] keywords: create_engine, connection, URL are responsible for defining the client configuration, whereas the [postgresql/postgres-official.md] keywords: port, pg_hba, connection handle how the database server accepts that connection.",,needs_review,,SQLAlchemy engine connects to PostgreSQL; both sides configure connection,,
+mh014,multi_hop,kubernetes/configmap.md; fastapi/deployment-docker.md,kubernetes/configmap.md; fastapi/deployment-docker.md,kubernetes/configmap.md + fastapi/deployment-docker.md,"[kubernetes/configmap.md] keywords: ConfigMap, envFrom, data | [fastapi/deployment-docker.md] keywords: env, environment, Docker",ConfigMap; envFrom; data; env; environment; Docker,"In a containerized setup, how do [kubernetes/configmap.md] keywords: ConfigMap, envFrom, data provide values for [fastapi/deployment-docker.md] keywords: env, environment, Docker?","Kubernetes can mount the [kubernetes/configmap.md] keywords: ConfigMap, envFrom, data directly into the running [fastapi/deployment-docker.md] keywords: env, environment, Docker containers to configure the application dynamically.",,needs_review,,ConfigMaps inject env vars into FastAPI Docker containers,,
+mh015,multi_hop,sqlalchemy/data-select.md; sqlalchemy/orm-manipulation.md,sqlalchemy/data-select.md; sqlalchemy/orm-manipulation.md,sqlalchemy/data-select.md + sqlalchemy/orm-manipulation.md,"[sqlalchemy/data-select.md] keywords: select, where, scalars | [sqlalchemy/orm-manipulation.md] keywords: session, add, commit",select; where; scalars; session; add; commit,"What is the workflow for retrieving and updating records using [sqlalchemy/data-select.md] keywords: select, where, scalars alongside [sqlalchemy/orm-manipulation.md] keywords: session, add, commit?","Developers typically query objects via [sqlalchemy/data-select.md] keywords: select, where, scalars and subsequently manipulate them within a transaction utilizing [sqlalchemy/orm-manipulation.md] keywords: session, add, commit.",,needs_review,,SELECT queries combined with ORM session writes in same transaction,,
+mh016,multi_hop,python/asyncio-tasks.md; fastapi/background-tasks.md,python/asyncio-tasks.md; fastapi/background-tasks.md,python/asyncio-tasks.md + fastapi/background-tasks.md,"[python/asyncio-tasks.md] keywords: asyncio, coroutine, await | [fastapi/background-tasks.md] keywords: async def, BackgroundTasks, async",asyncio; coroutine; await; async def; BackgroundTasks; async,"Is there an underlying connection between the [python/asyncio-tasks.md] keywords: asyncio, coroutine, await and the framework-specific [fastapi/background-tasks.md] keywords: async def, BackgroundTasks, async?","Yes, the core [python/asyncio-tasks.md] keywords: asyncio, coroutine, await mechanisms power the asynchronous execution of the [fastapi/background-tasks.md] keywords: async def, BackgroundTasks, async.",,needs_review,,asyncio tasks power FastAPI async endpoints and background tasks,,
+mh017,multi_hop,fastapi/dependencies.md; fastapi/security.md,fastapi/dependencies.md; fastapi/security.md,fastapi/dependencies.md + fastapi/security.md,"[fastapi/dependencies.md] keywords: Depends, dependency, inject | [fastapi/security.md] keywords: OAuth2, token",Depends; dependency; inject; OAuth2; token,"How does the framework utilize [fastapi/dependencies.md] keywords: Depends, dependency, inject to enforce [fastapi/security.md] keywords: OAuth2, token?","Security schemes involving [fastapi/security.md] keywords: OAuth2, token are naturally integrated into routes by leveraging the [fastapi/dependencies.md] keywords: Depends, dependency, inject system.",,needs_review,,FastAPI security is implemented via the dependency injection system,,
+mh018,multi_hop,fastapi/deployment-docker.md; docker/resource-constraints.md,fastapi/deployment-docker.md; docker/resource-constraints.md,fastapi/deployment-docker.md + docker/resource-constraints.md,"[fastapi/deployment-docker.md] keywords: Docker, container, uvicorn | [docker/resource-constraints.md] keywords: memory, cpu, limit",Docker; container; uvicorn; memory; cpu; limit,"When running a web app, how are the [fastapi/deployment-docker.md] keywords: Docker, container, uvicorn constrained by the [docker/resource-constraints.md] keywords: memory, cpu, limit?","The execution of the [fastapi/deployment-docker.md] keywords: Docker, container, uvicorn is kept within bounds by defining the [docker/resource-constraints.md] keywords: memory, cpu, limit at the runtime level.",,needs_review,,FastAPI Docker deployment combined with resource limits,,
+mh019,multi_hop,docker/security.md; kubernetes/secret.md,docker/security.md; kubernetes/secret.md,docker/security.md + kubernetes/secret.md,"[docker/security.md] keywords: TLS, certificate, protect | [kubernetes/secret.md] keywords: Secret, RBAC, serviceAccountToken",TLS; certificate; protect; Secret; RBAC; serviceAccountToken,"What similarities exist in managing credentials across [docker/security.md] keywords: TLS, certificate, protect and [kubernetes/secret.md] keywords: Secret, RBAC, serviceAccountToken?","Both contexts require safeguarding sensitive data; the [docker/security.md] keywords: TLS, certificate, protect secure daemon communications, while the [kubernetes/secret.md] keywords: Secret, RBAC, serviceAccountToken safely store authentication payloads.",,needs_review,,Docker security best practices and K8s Secrets both deal with credentials,,
+mh020,multi_hop,kubernetes/resource-management.md; kubernetes/pod-priority-preemption.md,kubernetes/resource-management.md; kubernetes/pod-priority-preemption.md,kubernetes/resource-management.md + kubernetes/pod-priority-preemption.md,"[kubernetes/resource-management.md] keywords: requests, limits, cpu | [kubernetes/pod-priority-preemption.md] keywords: PriorityClass, priority, preemption",requests; limits; cpu; PriorityClass; priority; preemption,"During a cluster scale-up or eviction, how do the [kubernetes/resource-management.md] keywords: requests, limits, cpu overlap with [kubernetes/pod-priority-preemption.md] keywords: PriorityClass, priority, preemption?","The node capacity boundaries defined by [kubernetes/resource-management.md] keywords: requests, limits, cpu trigger the scheduling logic that evaluates [kubernetes/pod-priority-preemption.md] keywords: PriorityClass, priority, preemption to determine which pods remain.",,needs_review,,Resource requests/limits interact with pod priority for scheduling,,
+mh021,multi_hop,kubernetes/pod-priority-preemption.md; kubernetes/disruptions.md,kubernetes/pod-priority-preemption.md; kubernetes/disruptions.md,kubernetes/pod-priority-preemption.md + kubernetes/disruptions.md,"[kubernetes/pod-priority-preemption.md] keywords: PriorityClass, preemption, priority | [kubernetes/disruptions.md] keywords: PodDisruptionBudget, disruption, eviction",PriorityClass; preemption; priority; PodDisruptionBudget; disruption; eviction,"If a node is overloaded, what is the interplay between [kubernetes/pod-priority-preemption.md] keywords: PriorityClass, preemption, priority and [kubernetes/disruptions.md] keywords: PodDisruptionBudget, disruption, eviction?","The scheduler applies [kubernetes/pod-priority-preemption.md] keywords: PriorityClass, preemption, priority to remove lower-ranked pods, though it may be restricted by the [kubernetes/disruptions.md] keywords: PodDisruptionBudget, disruption, eviction.",,needs_review,,Pod preemption and PodDisruptionBudgets interact during node pressure,,
+mh022,multi_hop,fastapi/websockets.md; python/asyncio-tasks.md,fastapi/websockets.md; python/asyncio-tasks.md,fastapi/websockets.md + python/asyncio-tasks.md,"[fastapi/websockets.md] keywords: WebSocket, await, receive | [python/asyncio-tasks.md] keywords: asyncio, coroutine, await",WebSocket; await; receive; asyncio; coroutine; await,"Why do [fastapi/websockets.md] keywords: WebSocket, await, receive heavily depend on the [python/asyncio-tasks.md] keywords: asyncio, coroutine, await concepts?","Handling real-time bidirectional messaging via [fastapi/websockets.md] keywords: WebSocket, await, receive requires non-blocking concurrency, which is supplied by the [python/asyncio-tasks.md] keywords: asyncio, coroutine, await.",,needs_review,,FastAPI WebSocket handlers are async functions powered by asyncio tasks,,
+mh023,multi_hop,kubernetes/pod-lifecycle.md; kubernetes/disruptions.md,kubernetes/pod-lifecycle.md; kubernetes/disruptions.md,kubernetes/pod-lifecycle.md + kubernetes/disruptions.md,"[kubernetes/pod-lifecycle.md] keywords: phase, Running, Succeeded | [kubernetes/disruptions.md] keywords: disruption, budget, eviction",phase; Running; Succeeded; disruption; budget; eviction,"How do current [kubernetes/pod-lifecycle.md] keywords: phase, Running, Succeeded states impact rules around [kubernetes/disruptions.md] keywords: disruption, budget, eviction?","The cluster evaluates the [kubernetes/pod-lifecycle.md] keywords: phase, Running, Succeeded to accurately enforce the guarantees of a [kubernetes/disruptions.md] keywords: disruption, budget, eviction.",,needs_review,,Pod phases interact with disruption budget decisions,,
+mh024,multi_hop,kubernetes/init-containers.md; kubernetes/sidecar-containers.md,kubernetes/init-containers.md; kubernetes/sidecar-containers.md,kubernetes/init-containers.md + kubernetes/sidecar-containers.md,"[kubernetes/init-containers.md] keywords: initContainers, Init, ready | [kubernetes/sidecar-containers.md] keywords: sidecar, restartPolicy, Always",initContainers; Init; ready; sidecar; restartPolicy; Always,"In what sequence do the [kubernetes/init-containers.md] keywords: initContainers, Init, ready and the [kubernetes/sidecar-containers.md] keywords: sidecar, restartPolicy, Always execute within a pod?","The [kubernetes/init-containers.md] keywords: initContainers, Init, ready must successfully finish their execution before any persistent [kubernetes/sidecar-containers.md] keywords: sidecar, restartPolicy, Always can start.",,needs_review,,Init containers run before sidecars; both extend pod capabilities,,
+cp001,comparison,kubernetes/replicaset.md; kubernetes/deployment.md,kubernetes/replicaset.md; kubernetes/deployment.md,kubernetes/replicaset.md vs kubernetes/deployment.md,Compare: ReplicaSet (direct) vs Deployment (managed rollout) ownership,ReplicaSet; selector; Deployment; rollout,Could you outline the differences when asked to Compare: ReplicaSet (direct) vs Deployment (managed rollout) ownership in Kubernetes?,"When instructed to Compare: ReplicaSet (direct) vs Deployment (managed rollout) ownership, a ReplicaSet is for direct pod scaling, whereas a Deployment oversees managed rollouts and history.",,needs_review,,ReplicaSet (direct) vs Deployment (managed rollout) ownership,,
+cp002,comparison,docker/security.md; fastapi/security.md,docker/security.md; fastapi/security.md,docker/security.md vs fastapi/security.md,Compare: Docker container security vs FastAPI application security,TLS; certificate; OAuth2,What contrasting approaches emerge if we Compare: Docker container security vs FastAPI application security?,Compare: Docker container security vs FastAPI application security,,needs_review,,Docker container security vs FastAPI application security,,
+cp003,comparison,fastapi/background-tasks.md; python/asyncio-tasks.md,fastapi/background-tasks.md; python/asyncio-tasks.md,fastapi/background-tasks.md vs python/asyncio-tasks.md,Compare: FastAPI BackgroundTasks vs raw asyncio tasks,BackgroundTasks; add_task; asyncio.create_task; coroutine,Please analyze and Compare: FastAPI BackgroundTasks vs raw asyncio tasks for asynchronous execution.,"To Compare: FastAPI BackgroundTasks vs raw asyncio tasks, the FastAPI method integrates tightly with the request/response lifecycle, while raw asyncio tasks are independent of the web framework.",,needs_review,,FastAPI BackgroundTasks vs raw asyncio tasks,,
+cp004,comparison,sqlalchemy/data-insert.md; sqlalchemy/data-update.md,sqlalchemy/data-insert.md; sqlalchemy/data-update.md,sqlalchemy/data-insert.md vs sqlalchemy/data-update.md,Compare: SQLAlchemy INSERT vs UPDATE operations,insert; values; update; where,What distinguishes the two DML statements when you Compare: SQLAlchemy INSERT vs UPDATE operations?,"When you Compare: SQLAlchemy INSERT vs UPDATE operations, INSERT introduces brand new rows into a table, while UPDATE modifies existing data using a WHERE filter.",,needs_review,,SQLAlchemy INSERT vs UPDATE operations,,
+cp005,comparison,docker/volumes.md; docker/bind-mounts.md,docker/volumes.md; docker/bind-mounts.md,docker/volumes.md vs docker/bind-mounts.md,Compare: managed volumes vs host bind mounts,volume; managed; bind; host,Can you detail the pros and cons to Compare: managed volumes vs host bind mounts in Docker?,"If you Compare: managed volumes vs host bind mounts, managed volumes are fully controlled by the Docker engine, whereas host bind mounts map directly to an arbitrary file system path.",,needs_review,,managed volumes vs host bind mounts,,
+cp006,comparison,fastapi/path-params.md; fastapi/query-params.md,fastapi/path-params.md; fastapi/query-params.md,fastapi/path-params.md vs fastapi/query-params.md,Compare: path parameters vs query parameters in FastAPI routes,path parameter; query parameter; optional,How should a developer decide between these options when they Compare: path parameters vs query parameters in FastAPI routes?,"To Compare: path parameters vs query parameters in FastAPI routes, path variables identify a specific resource, whereas query variables usually filter, sort, or modify the response.",,needs_review,,path parameters vs query parameters in FastAPI routes,,
+cp007,comparison,fastapi/websockets.md; fastapi/bigger-applications.md,fastapi/websockets.md; fastapi/bigger-applications.md,fastapi/websockets.md vs fastapi/bigger-applications.md,Compare: WebSocket endpoints vs regular HTTP endpoints in FastAPI app structure,WebSocket; connection; router; prefix,What architectural differences appear when we Compare: WebSocket endpoints vs regular HTTP endpoints in FastAPI app structure?,"When we Compare: WebSocket endpoints vs regular HTTP endpoints in FastAPI app structure, WebSockets require persistent, stateful connections, whereas regular HTTP endpoints handle discrete, stateless requests.",,needs_review,,WebSocket endpoints vs regular HTTP endpoints in FastAPI app structure,,
+cp008,comparison,fastapi/handling-errors.md; fastapi/middleware.md,fastapi/handling-errors.md; fastapi/middleware.md,fastapi/handling-errors.md vs fastapi/middleware.md,Compare: exception handlers vs middleware for error processing,exception_handler; HTTPException; middleware; request,At what point in the request lifecycle do these differ to Compare: exception handlers vs middleware for error processing?,"To Compare: exception handlers vs middleware for error processing, exception handlers trigger on specific thrown errors, while middleware intercepts and can modify all incoming requests and outgoing responses.",,needs_review,,exception handlers vs middleware for error processing,,
+cp009,comparison,kubernetes/init-containers.md; kubernetes/sidecar-containers.md,kubernetes/init-containers.md; kubernetes/sidecar-containers.md,kubernetes/init-containers.md vs kubernetes/sidecar-containers.md,Compare: init containers (run-once) vs sidecar containers (run-always),initContainers; sequential; sidecar; restartPolicy,What is the operational distinction if we Compare: init containers (run-once) vs sidecar containers (run-always) in a Pod?,"When asked to Compare: init containers (run-once) vs sidecar containers (run-always), init containers must complete successfully before the main application starts, whereas sidecars run alongside it indefinitely.",,needs_review,,init containers (run-once) vs sidecar containers (run-always),,
+cp010,comparison,docker/volumes.md; kubernetes/persistent-volumes.md,docker/volumes.md; kubernetes/persistent-volumes.md,docker/volumes.md vs kubernetes/persistent-volumes.md,Compare: Docker volume lifecycle vs Kubernetes PV/PVC lifecycle,docker volume create; volume prune; PersistentVolume; ReclaimPolicy,How do the storage abstractions diverge when you Compare: Docker volume lifecycle vs Kubernetes PV/PVC lifecycle?,"If you Compare: Docker volume lifecycle vs Kubernetes PV/PVC lifecycle, Docker handles volumes natively per host, while Kubernetes uses PVs and PVCs to abstract cluster-wide storage allocation.",,needs_review,,Docker volume lifecycle vs Kubernetes PV/PVC lifecycle,,
+cp011,comparison,kubernetes/service.md; kubernetes/ingress.md,kubernetes/service.md; kubernetes/ingress.md,kubernetes/service.md vs kubernetes/ingress.md,Compare: Service (L4) vs Ingress (L7) traffic routing in Kubernetes,ClusterIP; NodePort; Ingress; host,Could you elaborate on the network layers involved to Compare: Service (L4) vs Ingress (L7) traffic routing in Kubernetes?,"To Compare: Service (L4) vs Ingress (L7) traffic routing in Kubernetes, a Service routes TCP/UDP traffic using IP and port, whereas an Ingress routes HTTP/HTTPS traffic based on hostnames and paths.",,needs_review,,Service (L4) vs Ingress (L7) traffic routing in Kubernetes,,
+cp012,comparison,docker/networking.md; kubernetes/service.md,docker/networking.md; kubernetes/service.md,docker/networking.md vs kubernetes/service.md,Compare: Docker bridge networks vs Kubernetes Service networking,bridge; overlay; ClusterIP; selector,What are the fundamental topology differences when we Compare: Docker bridge networks vs Kubernetes Service networking?,"When we Compare: Docker bridge networks vs Kubernetes Service networking, Docker bridges isolate local containers on a single host, while Kubernetes Services provide logical routing across multiple cluster nodes.",,needs_review,,Docker bridge networks vs Kubernetes Service networking,,
+cp013,comparison,kubernetes/daemonset.md; kubernetes/deployment.md,kubernetes/daemonset.md; kubernetes/deployment.md,kubernetes/daemonset.md vs kubernetes/deployment.md,Compare: DaemonSet (one-per-node) vs Deployment (replica-count),DaemonSet; node; Deployment; replicas,Which scheduling strategies apply if you Compare: DaemonSet (one-per-node) vs Deployment (replica-count)?,"To Compare: DaemonSet (one-per-node) vs Deployment (replica-count), a DaemonSet automatically places a pod on every eligible node, whereas a Deployment schedules a specific number of replicas arbitrarily.",,needs_review,,DaemonSet (one-per-node) vs Deployment (replica-count),,
+cp014,comparison,sqlalchemy/metadata.md; sqlalchemy/orm-related.md,sqlalchemy/metadata.md; sqlalchemy/orm-related.md,sqlalchemy/metadata.md vs sqlalchemy/orm-related.md,Compare: Core Table metadata vs ORM relationship mapping,Table; Column; relationship; ForeignKey,"In SQLAlchemy, how do the structural definitions differ to Compare: Core Table metadata vs ORM relationship mapping?","When you Compare: Core Table metadata vs ORM relationship mapping, Core Table metadata defines exact database schemas, while ORM relationship mapping abstracts these into object-oriented links.",,needs_review,,Core Table metadata vs ORM relationship mapping,,
+cp015,comparison,kubernetes/configmap.md; kubernetes/secret.md,kubernetes/configmap.md; kubernetes/secret.md,kubernetes/configmap.md vs kubernetes/secret.md,Compare: ConfigMaps vs Secrets for configuration data,ConfigMap; data; Secret; base64,Why might a DevOps engineer Compare: ConfigMaps vs Secrets for configuration data?,An engineer would Compare: ConfigMaps vs Secrets for configuration data to decide whether to store plain-text environment variables or securely encode sensitive credentials.,,needs_review,,ConfigMaps vs Secrets for configuration data,,
+cp016,comparison,kubernetes/deployment.md; kubernetes/statefulset.md,kubernetes/deployment.md; kubernetes/statefulset.md,kubernetes/deployment.md vs kubernetes/statefulset.md,Compare: stateful vs stateless workloads,Deployment; RollingUpdate; StatefulSet; ordinal,What is the primary factor to consider when you Compare: stateful vs stateless workloads in Kubernetes?,"To Compare: stateful vs stateless workloads, stateful applications require persistent identity and storage (like a database), whereas stateless applications can be freely killed and restarted.",,needs_review,,stateful vs stateless workloads,,
+et001,exact_term,docker/volumes.md,docker/volumes.md,code block,Term '--aliases' found in code block(s),--aliases,Can you explain the usage of the Term '--aliases' found in code block(s)?,aliases,,needs_review,,,,
+et002,exact_term,docker/security.md,docker/security.md,code block,Term 'YOUR' found in code block(s),YOUR,Why is the capitalized Term 'YOUR' found in code block(s) throughout the docs?,Term 'YOUR' found in code block(s),,needs_review,,,,
+et003,exact_term,kubernetes/persistent-volumes.md,kubernetes/persistent-volumes.md,code block,Term '-sc' found in code block(s),-sc,"In the example output of a vSphere Persistent Disk, what is the exact value specified for the StorageClass that ends with '-sc'?",The exact value specified for the StorageClass is vcp-sc.,,needs_review,,,,
+et004,exact_term,sqlalchemy/data-update.md; sqlalchemy/orm-manipulation.md,sqlalchemy/data-update.md; sqlalchemy/orm-manipulation.md,code block,Term 'SET' found in code block(s),SET,"In SQLAlchemy, which method specifically controls the contents of the SET elements of an UPDATE statement?",The `_sql.Update.values` method controls the contents of the SET elements of the UPDATE statement.,,needs_review,,,,
+et005,exact_term,sqlalchemy/data-update.md; postgresql/pgvector.md,sqlalchemy/data-update.md; postgresql/pgvector.md,code block,Term 'LIMIT' found in code block(s),LIMIT,"When getting the nearest neighbors by L2 distance in pgvector, how do you restrict the query to return only 5 items using a specific SQL keyword?","To get the nearest neighbors by L2 distance and restrict the results, you use the SQL keyword LIMIT, as in `SELECT * FROM items ORDER BY embedding <-> '[3,1,2]' LIMIT 5;`.",,needs_review,,,,
+et006,exact_term,docker/compose-env-vars.md,docker/compose-env-vars.md,code block,Term 'required' found in code block(s),required,"In Docker Compose version 2.24.0, how can you set your `.env` file to be optional?","You can set your `.env` file, defined by the `env_file` attribute, to be optional by using the `required` field.",,needs_review,,,,
+et007,exact_term,kubernetes/ingress.md,kubernetes/ingress.md,code block,Term 'scope' found in code block(s),scope,What is the default scope for IngressClass parameters in Kubernetes?,The default scope for IngressClass parameters is cluster-wide.,,needs_review,,,,
+et008,exact_term,kubernetes/pod-lifecycle.md; kubernetes/init-containers.md,kubernetes/pod-lifecycle.md; kubernetes/init-containers.md,code block,Term 'initContainers' found in code block(s),initContainers,"In Kubernetes, how is a sidecar defined in relation to the `initContainers` list and its restart policy?","In Kubernetes, a sidecar is defined as an entry inside `initContainers` that has its container-level `restartPolicy` set to `Always`.",,needs_review,,,,
+et009,exact_term,kubernetes/persistent-volumes.md,kubernetes/persistent-volumes.md,code block,Term 'Claim' found in code block(s),Claim,"In the provided example of a vSphereVolume Persistent Disk resource, what is the value listed for the Claim field?",The value listed for the Claim field is default/vcp-pvc-1.,,needs_review,,,,
+et010,exact_term,kubernetes/persistent-volumes.md,kubernetes/persistent-volumes.md,code block,Term 'CSI' found in code block(s),CSI,"According to the Kubernetes Persistent Volumes documentation, what network storage system containing 'CSI' in its name can be automatically mounted?",A network storage system such as iSCSI can be automatically mounted.,,needs_review,,,,
+et011,exact_term,kubernetes/deployment.md; docker/volumes.md,kubernetes/deployment.md; docker/volumes.md,code block,Term '--replicas' found in code block(s),--replicas,What command is used to scale a Deployment by setting the number of instances to 10?,You can scale a Deployment by using the following command: `kubectl scale deployment/nginx-deployment --replicas=10`.,,needs_review,,,,
+et012,exact_term,kubernetes/persistent-volumes.md,kubernetes/persistent-volumes.md,code block,Term 'ReadOnly' found in code block(s),ReadOnly,"When a PersistentVolumeClaim requests specific access modes, which option includes the word 'ReadOnly'?",They can be mounted with specific access modes such as ReadOnlyMany.,,needs_review,,,,
+ua001,unanswerable,,,,Topic absent from corpus: Kubernetes RBAC ClusterRole,Kubernetes RBAC ClusterRole,How do I configure a Kubernetes RBAC ClusterRole for a new user?,Information not available.,,needs_review,,,Kubernetes RBAC ClusterRole,ClusterRole|ClusterRoleBinding
+ua002,unanswerable,,,,Topic absent from corpus: pgBouncer,pgBouncer,What are the recommended connection pooling settings for pgBouncer?,Information not available.,,needs_review,,,pgBouncer,pgBouncer|pgbouncer
+ua003,unanswerable,,,,Topic absent from corpus: Network Policy,Network Policy,How can I define a Network Policy to restrict pod-to-pod communication?,Information not available.,,needs_review,,,Network Policy,NetworkPolicy
+ua004,unanswerable,,,,Topic absent from corpus: pg_logical,pg_logical,How do I install the pg_logical extension?,Information not available.,,needs_review,,,pg_logical,pg_logical
+ua005,unanswerable,,,,Topic absent from corpus: logical replication,logical replication,What are the steps to set up logical replication between two database clusters?,Information not available.,,needs_review,,,logical replication,logical replication
+ua006,unanswerable,,,,Topic absent from corpus: PostgreSQL tablespace,PostgreSQL tablespace,How do I create a new PostgreSQL tablespace for custom data storage?,Information not available.,,needs_review,,,PostgreSQL tablespace,tablespace|TABLESPACE
+ua007,unanswerable,,,,Topic absent from corpus: SQLAlchemy async session,SQLAlchemy async session,What is the best way to manage a SQLAlchemy async session in a web application?,Information not available.,,needs_review,,,SQLAlchemy async session,AsyncSession|async_session
+ua008,unanswerable,,,,Topic absent from corpus: FastAPI WebSocket authentication,FastAPI WebSocket authentication,How can I implement FastAPI WebSocket authentication securely?,Information not available.,,needs_review,,,FastAPI WebSocket authentication,websocket.*auth|auth.*websocket
+ua009,unanswerable,,,,Topic absent from corpus: Docker BuildKit,Docker BuildKit,What caching features does Docker BuildKit support during image building?,Information not available.,,needs_review,,,Docker BuildKit,BuildKit|DOCKER_BUILDKIT
+ua010,unanswerable,,,,Topic absent from corpus: Argo Workflows,Argo Workflows,How do I create a DAG using Argo Workflows?,Information not available.,,needs_review,,,Argo Workflows,Argo Workflow|argoproj
+ua011,unanswerable,,,,Topic absent from corpus: pg_cron,pg_cron,Can I use pg_cron to schedule background database maintenance tasks?,Information not available.,,needs_review,,,pg_cron,pg_cron
+ua012,unanswerable,,,,Topic absent from corpus: Helm chart,Helm chart,How do I override default values when installing a Helm chart?,Information not available.,,needs_review,,,Helm chart,Helm chart|helm install
+fu001,followup,kubernetes/pod-lifecycle.md,kubernetes/pod-lifecycle.md,kubernetes/pod-lifecycle.md,What is the default value for restartPolicy?,Always; default; restartPolicy,"Out of those three possible values for the field, what is the default value?",The default value is Always.,"[{""role"": ""user"", ""content"": ""What restart policies exist in Kubernetes?""}, {""role"": ""assistant"", ""content"": ""The three restart policies are Always, OnFailure, and Never.""}]",needs_review,,,,
+fu002,followup,kubernetes/configmap.md,kubernetes/configmap.md,kubernetes/configmap.md,"Can a ConfigMap be made immutable, and what does that mean?",envFrom; volume; immutable,"Is there a way to prevent changes to this configuration data by making it read-only, and if so, how?","You can create an immutable ConfigMap by setting the `immutable` field to `true`. Once a ConfigMap is marked as immutable, it is not possible to revert this change nor to mutate the contents of the `data` or the `binaryData` field.","[{""role"": ""user"", ""content"": ""What is a Kubernetes ConfigMap used for?""}, {""role"": ""assistant"", ""content"": ""ConfigMaps store non-confidential configuration data as key-value pairs that pods can consume as environment variables or mounted files.""}]",needs_review,,,,
+fu003,followup,fastapi/cors.md,fastapi/cors.md,fastapi/cors.md,Which CORSMiddleware parameters control allowed headers and credentials?,allow_credentials; allow_headers; CORSMiddleware,"When configuring this middleware, which parameter should I set to `True` to indicate that cookies should be supported for cross-origin requests?","To indicate that cookies should be supported for cross-origin requests, you set the `allow_credentials` parameter to `True`.","[{""role"": ""user"", ""content"": ""What is CORS and why does FastAPI need it?""}, {""role"": ""assistant"", ""content"": ""CORS (Cross-Origin Resource Sharing) is a browser security mechanism. FastAPI needs CORSMiddleware to allow frontends on different origins to call the API.""}]",needs_review,,,,
+fu004,followup,fastapi/path-params.md,fastapi/path-params.md,fastapi/path-params.md,How does FastAPI validate the type of a path parameter?,type; int; validation,How can I ensure that the value received for this parameter is automatically parsed as an `int` instead of a string?,"You can declare the type of a path parameter in the function, using standard Python type annotations, such as `item_id: int`. With that type declaration, FastAPI gives you automatic request parsing.","[{""role"": ""user"", ""content"": ""How does FastAPI define path parameters?""}, {""role"": ""assistant"", ""content"": ""FastAPI uses curly braces in the path string, e.g. '/items/{item_id}', and the parameter is declared in the function signature with the same name.""}]",needs_review,,,,
+fu005,followup,kubernetes/statefulset.md,kubernetes/statefulset.md,kubernetes/statefulset.md,How does a StatefulSet manage persistent storage for each replica?,volumeClaimTemplates; storage; PVC,How exactly does it configure this stable storage using PersistentVolumes for each replica?,You can set the `.spec.volumeClaimTemplates` field to create a volume claim template that will provide stable storage using PersistentVolumes provisioned by a PersistentVolume Provisioner.,"[{""role"": ""user"", ""content"": ""What is a Kubernetes StatefulSet?""}, {""role"": ""assistant"", ""content"": ""A StatefulSet manages stateful applications; it provides stable network identities and persistent storage ordered by ordinal index.""}]",needs_review,,,,
+fu006,followup,docker/volumes.md,docker/volumes.md,docker/volumes.md,How do you back up data stored in a Docker volume?,backup; driver; volume create,"If I want to back up a volume from a container like `dbstore`, what command can I use to mount it and tar the contents to a local directory?","You can use a command that launches a new container, mounts the volume from the `dbstore` container using `--volumes-from dbstore`, and tars the contents to a local host directory mounted as `/backup`. For example: `docker run --rm --volumes-from dbstore -v $(pwd):/backup ubuntu tar cvf /backup/backup.tar /dbdata`.","[{""role"": ""user"", ""content"": ""How do Docker volumes differ from bind mounts?""}, {""role"": ""assistant"", ""content"": ""Docker volumes are managed by Docker and stored in Docker's storage area, while bind mounts link directly to a host filesystem path.""}]",needs_review,,,,
+fu007,followup,kubernetes/pod-lifecycle.md,kubernetes/pod-lifecycle.md,kubernetes/pod-lifecycle.md,What is the default restart policy for a Pod?,Running; default; restart,"When a Pod is in the second phase you mentioned, what must be true about its containers, even if some might be restarting?","In the `Running` phase, the Pod has been bound to a node, and all of the containers have been created. At least one container is still running, or is in the process of starting or restarting.","[{""role"": ""user"", ""content"": ""What are the possible phases of a Kubernetes Pod?""}, {""role"": ""assistant"", ""content"": ""A Pod can be in one of five phases: Pending, Running, Succeeded, Failed, or Unknown.""}]",needs_review,,,,
+fu008,followup,fastapi/dependencies.md,fastapi/dependencies.md,fastapi/dependencies.md,"Can FastAPI dependencies use yield for cleanup, and how does that work?",dependencies; FastAPI,"If my dependencies have their own sub-dependencies, how are all of their request declarations and validations handled in the API docs?","All the request declarations, validations and requirements of your dependencies (and sub-dependencies) will be integrated in the same OpenAPI schema.","[{""role"": ""user"", ""content"": ""How does FastAPI dependency injection work?""}, {""role"": ""assistant"", ""content"": ""FastAPI uses the Depends() function in path operation parameters. When a request comes in, FastAPI resolves the dependency and injects its return value.""}]",needs_review,,,,
+sl049,single_lookup,fastapi/path-params.md,fastapi/path-params.md,Path Parameters { #path-parameters } > Pydantic { #pydantic },"All the data validation is performed under the hood by [Pydantic](https://pydantic.dev/docs/), so you get all the benefits from it. And you know you are in good hands.
+
+You can use the same type declarations with `str`, `float`, `bool` and many other complex data types.
+
+Several of these are explored in the next chapters of the tutorial.",data; validation; performed; under; hood; pydantic,,,,needs_review,,,,
+sl050,single_lookup,fastapi/path-params.md,fastapi/path-params.md,Path Parameters { #path-parameters } > Path parameters containing paths { #path-parameters-containing-paths } > Path convertor { #path-convertor },"Using an option directly from Starlette you can declare a *path parameter* containing a *path* using a URL like:
+
+```
+/files/{file_path:path}
+```
+
+In this case, the name of the parameter is `file_path`, and the last part, `:path`, tells it that the parameter should match any *path*.
+
+So, you can use it with:
+
+{* ../../docs_src/path_params/tutorial004_py310.py hl[6] *}
+
+/// tip
+
+You might need the parameter to contain `/home/johndoe/myfile.txt`, with a leading slash (`/`).
+
+In that case, the URL would be: `/files//home/johndoe/myfile.txt`, with a double slash (`//`) between `files` and `home`.
+",using; option; directly; starlette; you; declare,,,,needs_review,,,,
+sl051,single_lookup,fastapi/query-params.md,fastapi/query-params.md,Query Parameters { #query-parameters },"When you declare other function parameters that are not part of the path parameters, they are automatically interpreted as ""query"" parameters.
+
+{* ../../docs_src/query_params/tutorial001_py310.py hl[9] *}
+
+The query is the set of key-value pairs that go after the `?` in a URL, separated by `&` characters.
+
+For example, in the URL:
+
+```
+http://127.0.0.1:8000/items/?skip=0&limit=10
+```
+
+...the query parameters are:
+
+* `skip`: with a value of `0`
+* `limit`: with a value of `10`
+
+As they are part of the URL, they are ""naturally"" strings.
+
+But when you declare them with Python types (in the example",you; declare; other; function; parameters; part,,,,needs_review,,,,
+sl052,single_lookup,fastapi/query-params.md,fastapi/query-params.md,Query Parameters { #query-parameters } > Defaults { #defaults },"As query parameters are not a fixed part of a path, they can be optional and can have default values.
+
+In the example above they have default values of `skip=0` and `limit=10`.
+
+So, going to the URL:
+
+```
+http://127.0.0.1:8000/items/
+```
+
+would be the same as going to:
+
+```
+http://127.0.0.1:8000/items/?skip=0&limit=10
+```
+
+But if you go to, for example:
+
+```
+http://127.0.0.1:8000/items/?skip=20
+```
+
+The parameter values in your function will be:
+
+* `skip=20`: because you set it in the URL
+* `limit=10`: because that was the default value",query; parameters; fixed; part; path; optional,,,,needs_review,,,,
+sl053,single_lookup,fastapi/body.md,fastapi/body.md,Request Body { #request-body } > Request body + path parameters { #request-body-path-parameters },"You can declare path parameters and request body at the same time.
+
+**FastAPI** will recognize that the function parameters that match path parameters should be **taken from the path**, and that function parameters that are declared to be Pydantic models should be **taken from the request body**.
+
+{* ../../docs_src/body/tutorial003_py310.py hl[15:16] *}",you; declare; path; parameters; request; body,,,,needs_review,,,,
+sl054,single_lookup,fastapi/body.md,fastapi/body.md,Request Body { #request-body } > Automatic docs { #automatic-docs },"The JSON Schemas of your models will be part of your OpenAPI generated schema, and will be shown in the interactive API docs:
+
+<img src=""/img/tutorial/body/image01.png"">
+
+And will also be used in the API docs inside each *path operation* that needs them:
+
+<img src=""/img/tutorial/body/image02.png"">",json; schemas; your; models; part; openapi,,,,needs_review,,,,
+sl055,single_lookup,fastapi/dependencies.md,fastapi/dependencies.md,Dependencies { #dependencies } > **FastAPI** compatibility { #fastapi-compatibility },"The simplicity of the dependency injection system makes **FastAPI** compatible with:
+
+* all the relational databases
+* NoSQL databases
+* external packages
+* external APIs
+* authentication and authorization systems
+* API usage monitoring systems
+* response data injection systems
+* etc.",simplicity; dependency; injection; system; makes; fastapi,,,,needs_review,,,,
+sl056,single_lookup,fastapi/dependencies.md,fastapi/dependencies.md,Dependencies { #dependencies } > Simple and Powerful { #simple-and-powerful },"Although the hierarchical dependency injection system is very simple to define and use, it's still very powerful.
+
+You can define dependencies that in turn can define dependencies themselves.
+
+In the end, a hierarchical tree of dependencies is built, and the **Dependency Injection** system takes care of solving all these dependencies for you (and their sub-dependencies) and providing (injecting) the results at each step.
+
+For example, let's say you have 4 API endpoints (*path operations*):
+
+* `/items/public/`
+* `/items/private/`
+* `/users/{user_id}/activate`
+* `/items/pro/`
+
+then you could add",although; hierarchical; dependency; injection; system; very,,,,needs_review,,,,
+sl057,single_lookup,fastapi/security.md,fastapi/security.md,Security { #security } > OAuth2 { #oauth2 } > OAuth 1 { #oauth-1 },"There was an OAuth 1, which is very different from OAuth2, and more complex, as it included direct specifications on how to encrypt the communication.
+
+It is not very popular or used nowadays.
+
+OAuth2 doesn't specify how to encrypt the communication, it expects you to have your application served with HTTPS.
+
+/// tip
+
+In the section about **deployment** you will see how to set up HTTPS for free, using Traefik and Let's Encrypt.
+
+///",oauth; very; different; oauth2; complex; included,,,,needs_review,,,,
+sl058,single_lookup,fastapi/security.md,fastapi/security.md,Security { #security },"There are many ways to handle security, authentication and authorization.
+
+And it normally is a complex and ""difficult"" topic.
+
+In many frameworks and systems just handling security and authentication takes a big amount of effort and code (in many cases it can be 50% or more of all the code written).
+
+**FastAPI** provides several tools to help you deal with **Security** easily, rapidly, in a standard way, without having to study and learn all the security specifications.
+
+But first, let's check some small concepts.",many; ways; handle; security; authentication; authorization,,,,needs_review,,,,
+sl059,single_lookup,fastapi/background-tasks.md,fastapi/background-tasks.md,Background Tasks { #background-tasks } > Create a task function { #create-a-task-function },"Create a function to be run as the background task.
+
+It is just a standard function that can receive parameters.
+
+It can be an `async def` or normal `def` function, **FastAPI** will know how to handle it correctly.
+
+In this case, the task function will write to a file (simulating sending an email).
+
+And as the write operation doesn't use `async` and `await`, we define the function with normal `def`:
+
+{* ../../docs_src/background_tasks/tutorial001_py310.py hl[6:9] *}",create; function; run; background; task; just,,,,needs_review,,,,
+sl060,single_lookup,fastapi/background-tasks.md,fastapi/background-tasks.md,Background Tasks { #background-tasks } > Technical Details { #technical-details },"The class `BackgroundTasks` comes directly from [`starlette.background`](https://starlette.dev/background/).
+
+It is imported/included directly into FastAPI so that you can import it from `fastapi` and avoid accidentally importing the alternative `BackgroundTask` (without the `s` at the end) from `starlette.background`.
+
+By only using `BackgroundTasks` (and not `BackgroundTask`), it's then possible to use it as a *path operation function* parameter and have **FastAPI** handle the rest for you, just like when using the `Request` object directly.
+
+It's still possible to use `BackgroundTask` alone",class; backgroundtasks; comes; directly; starlette; background,,,,needs_review,,,,
+mh025,multi_hop,sqlalchemy/orm-manipulation.md; postgresql/postgres-official.md,sqlalchemy/orm-manipulation.md; postgresql/postgres-official.md,sqlalchemy/orm-manipulation.md + postgresql/postgres-official.md,"[sqlalchemy/orm-manipulation.md] keywords: session, commit, flush | [postgresql/postgres-official.md] keywords: transaction, COMMIT",session; commit; flush; transaction; COMMIT,,,,needs_review,,SQLAlchemy ORM writes map to PostgreSQL transactions,,
+cp017,comparison,python/asyncio-tasks.md; python/asyncio-sync.md,python/asyncio-tasks.md; python/asyncio-sync.md,python/asyncio-tasks.md vs python/asyncio-sync.md,Compare: asyncio task creation vs synchronization primitives,create_task; gather; Lock; Event,,,,needs_review,,asyncio task creation vs synchronization primitives,,
+et013,exact_term,docker/volumes.md,docker/volumes.md,code block,Term 'external' found in code block(s),external,,,,needs_review,,,,
+et014,exact_term,kubernetes/service.md,kubernetes/service.md,code block,Term '-of-service-port' found in code block(s),-of-service-port,,,,needs_review,,,,
+et015,exact_term,docker/multi-service.md; fastapi/deployment-docker.md,docker/multi-service.md; fastapi/deployment-docker.md,code block,Term 'COPY' found in code block(s),COPY,,,,needs_review,,,,
+fu009,followup,sqlalchemy/engine.md,sqlalchemy/engine.md,sqlalchemy/engine.md,When does SQLAlchemy actually open a database connection?,pool; connection; lazy,When does SQLAlchemy actually open a database connection?,,"[{""role"": ""user"", ""content"": ""What does the SQLAlchemy create_engine function do?""}, {""role"": ""assistant"", ""content"": ""create_engine creates a database engine object that manages a connection pool and dialect to communicate with a specific database.""}]",needs_review,,,,
+fu010,followup,kubernetes/ingress.md,kubernetes/ingress.md,kubernetes/ingress.md,How do you configure TLS termination for a Kubernetes Ingress?,TLS; certificate,How do you configure TLS termination for a Kubernetes Ingress?,,"[{""role"": ""user"", ""content"": ""What does a Kubernetes Ingress resource do?""}, {""role"": ""assistant"", ""content"": ""An Ingress manages external HTTP/HTTPS access to services in a cluster, providing routing rules based on host and path.""}]",needs_review,,,,
