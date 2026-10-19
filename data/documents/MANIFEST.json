@@ -1,0 +1,487 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-22T02:37:47.551887+00:00",
+  "count": 48,
+  "files": [
+    {
+      "path": "kubernetes/pod-lifecycle.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/pods/pod-lifecycle.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "1d81a56b63aa75e10d3cea41978420da7c046027a143c56852f6698ff5e6623c",
+      "word_count": 7730,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:26.089309+00:00"
+    },
+    {
+      "path": "kubernetes/init-containers.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/pods/init-containers.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "770728807f4f2d66ef63a5cbd2e8f94df60dd1286136190c5317c2c00dfda417",
+      "word_count": 2098,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:26.430994+00:00"
+    },
+    {
+      "path": "kubernetes/sidecar-containers.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/pods/sidecar-containers.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "e0b5b81427e6ed5bb2a2261b92be80ed8881abb69f2f65b0c08d19bf4e2f70a7",
+      "word_count": 1229,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:27.092786+00:00"
+    },
+    {
+      "path": "kubernetes/deployment.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/controllers/deployment.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "ca4571585f3af4039292fdbbe127e296e1b86d44b4df52cec75dbf51c96da513",
+      "word_count": 7746,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:27.565178+00:00"
+    },
+    {
+      "path": "kubernetes/statefulset.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/controllers/statefulset.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "80644699b3b98a7e1574cb9147a5a22b5196b35ae06cbb60248a399a64bfd2e2",
+      "word_count": 3682,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:57.904655+00:00"
+    },
+    {
+      "path": "kubernetes/daemonset.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/controllers/daemonset.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "f785013513269d60e125244193bcfb345ca244507bc4874ddafd12f62d1dae97",
+      "word_count": 1864,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:58.227984+00:00"
+    },
+    {
+      "path": "kubernetes/service.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/services-networking/service.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "6d014ced1fe171abbea82556cecac6601333fe27ffa834aff1c3d5d6246a5398",
+      "word_count": 6425,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:58.813285+00:00"
+    },
+    {
+      "path": "kubernetes/ingress.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/services-networking/ingress.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "b93613d1621fe883b67f79a393cf4b5f6a71f0b7f722b162388f3a21e10fa47e",
+      "word_count": 3416,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:59.155440+00:00"
+    },
+    {
+      "path": "kubernetes/persistent-volumes.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/storage/persistent-volumes.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "b0da38869bc1cdb5ed19f6424c2ef0fedefb5e10fb3603450f56a6581db90069",
+      "word_count": 6796,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:33:59.550772+00:00"
+    },
+    {
+      "path": "kubernetes/configmap.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/configuration/configmap.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "2e3860f6aeb7d86e6d2dd8f32493dbc1d52ce1c54606cb08455107b297a63a2a",
+      "word_count": 1854,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:29.895565+00:00"
+    },
+    {
+      "path": "kubernetes/secret.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/configuration/secret.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "30bb29e4040f1464a8cb299524f51e0a1ae2279a63f45b7182b1b8faf27af194",
+      "word_count": 4466,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:30.197886+00:00"
+    },
+    {
+      "path": "kubernetes/resource-management.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/configuration/manage-resources-containers.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "cbb176ded47da163df33bcf0e643dc38361b19f6dc77a98302320704e20c95ac",
+      "word_count": 4631,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:30.525083+00:00"
+    },
+    {
+      "path": "kubernetes/disruptions.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/pods/disruptions.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "1e271a28d6a8adf51b19b123d7a0642646c08f0a4103e18a7869cccc888ca320",
+      "word_count": 2199,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:30.830386+00:00"
+    },
+    {
+      "path": "kubernetes/pod-priority-preemption.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/scheduling-eviction/pod-priority-preemption.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "762772f83d8e8988793b1c7edfe33fa0f7f897acda9afcf9ff9a5611ec4cd616",
+      "word_count": 3385,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:31.236843+00:00"
+    },
+    {
+      "path": "kubernetes/job.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/controllers/job.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "d7aa50f7270853d3bb944bbf98478b6e0b25aad33ff6a2a29f2d33b37d63a6f7",
+      "word_count": 8748,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:31.599227+00:00"
+    },
+    {
+      "path": "kubernetes/replicaset.md",
+      "source_url": "https://raw.githubusercontent.com/kubernetes/website/7dae432fc14a1724569fcd291418df0e3ea37948/content/en/docs/concepts/workloads/controllers/replicaset.md",
+      "commit_sha": "7dae432fc14a1724569fcd291418df0e3ea37948",
+      "license": "CC-BY-4.0",
+      "sha256": "973d23febbb9c5c8dc791d9301f5c15d4a05b96a36550f5099ce443fed4602b9",
+      "word_count": 2551,
+      "product": "kubernetes",
+      "fetched_at": "2026-09-22T02:34:32.030819+00:00"
+    },
+    {
+      "path": "docker/resource-constraints.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/containers/resource_constraints.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "9da4d895066037917254a089996e2e0de047187734ac922381d7f3b6f4aed53e",
+      "word_count": 2072,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:34:33.379870+00:00"
+    },
+    {
+      "path": "docker/networking.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/network/_index.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "dc84241e996635fb2d8f4394284bd29f54705c1ac62046d59c87b596df227da9",
+      "word_count": 1993,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:03.753671+00:00"
+    },
+    {
+      "path": "docker/volumes.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/storage/volumes.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "4c285d997b9519ade9c8db2e49294e2c3b07b7b6b7422050822a909103a717fb",
+      "word_count": 3986,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:04.051977+00:00"
+    },
+    {
+      "path": "docker/security.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/security/protect-access.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "01f06e91ca3c4477647377f1dc3cb7eb61fb91fa3b70e8a8938dc8afe6ba1ec0",
+      "word_count": 1570,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:04.439650+00:00"
+    },
+    {
+      "path": "docker/compose-env-vars.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/compose/how-tos/environment-variables/set-environment-variables.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "e76a9c3185087fcd4f87d0af1754ea3e3eae3f777b0ae0fad9e5729e0c883ade",
+      "word_count": 720,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:34.761225+00:00"
+    },
+    {
+      "path": "docker/bind-mounts.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/storage/bind-mounts.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "54d5cadcf8b034421be918a8bde8381b0c29ab437573d5ca74852310392365d9",
+      "word_count": 2690,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:35.152324+00:00"
+    },
+    {
+      "path": "docker/logging.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/logging/configure.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "f6363a3e266fa0a5de5dd4ac3f5c0bef688de49bdc36a60ce6e0132e6e8825ee",
+      "word_count": 1328,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:35.469129+00:00"
+    },
+    {
+      "path": "docker/multi-service.md",
+      "source_url": "https://raw.githubusercontent.com/docker/docs/71fa06427156ab4e87b88cdc9983d2efea8b7519/content/manuals/engine/containers/multi-service_container.md",
+      "commit_sha": "71fa06427156ab4e87b88cdc9983d2efea8b7519",
+      "license": "Apache-2.0",
+      "sha256": "ce39a7e69e0096e9f654027398b5875ed43478a7d54a6f646223eeb33d5dd9ca",
+      "word_count": 624,
+      "product": "docker",
+      "fetched_at": "2026-09-22T02:35:35.765696+00:00"
+    },
+    {
+      "path": "fastapi/path-params.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/path-params.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "81e09015b7a5c40e460eca9939da240a66f8a9efd88ad21c7992146337426fea",
+      "word_count": 1237,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:35:36.799973+00:00"
+    },
+    {
+      "path": "fastapi/query-params.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/query-params.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "e521d3e41fd4b3c57adfcecadfd97fe68e64a20ea88fa6bee117bba4e183ec71",
+      "word_count": 660,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:07.121064+00:00"
+    },
+    {
+      "path": "fastapi/body.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/body.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "1a3e0f7b9220dcee9a7379c999d57b49e126ed07725dbbc5566ee1278d4ec670",
+      "word_count": 1004,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:37.736471+00:00"
+    },
+    {
+      "path": "fastapi/dependencies.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/dependencies/index.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "83319cc87297bb0959c5721a112133e6a3cd19900163c348a8ee6cf4818cd21f",
+      "word_count": 1411,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:38.129954+00:00"
+    },
+    {
+      "path": "fastapi/security.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/security/index.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "6c316110d145e16cc08e6e3caff00ebe7247470e85af3ce212d1ba3391092da8",
+      "word_count": 697,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:38.431123+00:00"
+    },
+    {
+      "path": "fastapi/background-tasks.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/background-tasks.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "7a34e7a4a7bd2cb9e0b465588b77cf007b0a5c8bdcf7530ff3619ff6b3642468",
+      "word_count": 706,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:38.746603+00:00"
+    },
+    {
+      "path": "fastapi/middleware.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/middleware.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "58cb232d288a5bdfa6f91680f6615520748884e17463059a1f28e78273563c39",
+      "word_count": 549,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:39.063492+00:00"
+    },
+    {
+      "path": "fastapi/cors.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/cors.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "da167c442cc3a73a776782a3e45936165c713e63cc40a9f0117d490a51a60b17",
+      "word_count": 730,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:39.381456+00:00"
+    },
+    {
+      "path": "fastapi/bigger-applications.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/bigger-applications.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "943368d567d4a841ac0710f2a97bf0775c11e4f3b7e9ece2a9a76268eb618133",
+      "word_count": 2847,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:39.683709+00:00"
+    },
+    {
+      "path": "fastapi/deployment-docker.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/deployment/docker.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "0337b98d51778755f59aa1b96ba319f0decc20136f3b3ff1b7547619a5c71100",
+      "word_count": 4238,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:39.996845+00:00"
+    },
+    {
+      "path": "fastapi/handling-errors.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/handling-errors.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "c0cb7aeafe8ed3802396f2421755cf1e740000347305c515a2c828c0c41f4b1a",
+      "word_count": 1304,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:40.305882+00:00"
+    },
+    {
+      "path": "fastapi/response-model.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/tutorial/response-model.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "40893b055f60ae81f2d149c6159ef98555ca05845d210a4c88f3824d66092be1",
+      "word_count": 2374,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:40.612565+00:00"
+    },
+    {
+      "path": "fastapi/websockets.md",
+      "source_url": "https://raw.githubusercontent.com/tiangolo/fastapi/50113da16fec53b66b80d75e80a89296de4fa5a5/docs/en/docs/advanced/websockets.md",
+      "commit_sha": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "sha256": "8320bc17f58bd4427b91caf7ab7aceb2143b3203aba29f29116b8829e5f62f31",
+      "word_count": 725,
+      "product": "fastapi",
+      "fetched_at": "2026-09-22T02:36:40.901908+00:00"
+    },
+    {
+      "path": "sqlalchemy/engine.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/engine.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "720478655b70126e9816eb3e248f6bf670e19dd90e65d6024e6c8c71b69c2028",
+      "word_count": 472,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:11.764037+00:00"
+    },
+    {
+      "path": "sqlalchemy/metadata.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/metadata.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "55c0c02295ea217f99326e3909f1df5a8b69aaf9700813ba25ef308406ee564f",
+      "word_count": 4177,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:42.376162+00:00"
+    },
+    {
+      "path": "sqlalchemy/data-insert.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/data_insert.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "70bbe7422f05b805f3804fe6d19d42f35b7b0c367f4f9131ac2ea8fbe7306704",
+      "word_count": 1798,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:42.783346+00:00"
+    },
+    {
+      "path": "sqlalchemy/data-select.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/data_select.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "5c9c56bcfa487569d2aafab1cbc513eced0c113a8158d0c068d74315731704d4",
+      "word_count": 9911,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:43.502083+00:00"
+    },
+    {
+      "path": "sqlalchemy/data-update.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/data_update.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "788de63a666d9e8009da9fef2ede0dd6441710c06ec99a6bd41e4047117f69c0",
+      "word_count": 1776,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:43.878132+00:00"
+    },
+    {
+      "path": "sqlalchemy/orm-related.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/orm_related_objects.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "1fa4499581d35d9e18567cdcb033861198c2f0dd278d311ca67b8d44d7796bfb",
+      "word_count": 3754,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:44.329855+00:00"
+    },
+    {
+      "path": "sqlalchemy/orm-manipulation.md",
+      "source_url": "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/6e870776cbf298b541877af9b6caf73bc86b379e/doc/build/tutorial/orm_data_manipulation.rst",
+      "commit_sha": "6e870776cbf298b541877af9b6caf73bc86b379e",
+      "license": "MIT",
+      "sha256": "7f1a305938ceaa1a75367adaa31141d095bf048ff71bfe6eae053c035a4b07f3",
+      "word_count": 3337,
+      "product": "sqlalchemy",
+      "fetched_at": "2026-09-22T02:37:44.723413+00:00"
+    },
+    {
+      "path": "python/asyncio-tasks.md",
+      "source_url": "https://raw.githubusercontent.com/python/cpython/d5dede7442ebb4a05cff5309697fb5dcba3d5297/Doc/library/asyncio-task.rst",
+      "commit_sha": "d5dede7442ebb4a05cff5309697fb5dcba3d5297",
+      "license": "PSF-2.0",
+      "sha256": "e05758d0bb7d812d051d6c3f4ce73945f75bf947b6486e3740d556a389155928",
+      "word_count": 6833,
+      "product": "python",
+      "fetched_at": "2026-09-22T02:37:45.672871+00:00"
+    },
+    {
+      "path": "python/asyncio-sync.md",
+      "source_url": "https://raw.githubusercontent.com/python/cpython/d5dede7442ebb4a05cff5309697fb5dcba3d5297/Doc/library/asyncio-sync.rst",
+      "commit_sha": "d5dede7442ebb4a05cff5309697fb5dcba3d5297",
+      "license": "PSF-2.0",
+      "sha256": "ca0a9e2eee87312f90aca04db120e792d796fd9f97efc85f4e66bc9c36ad553d",
+      "word_count": 1729,
+      "product": "python",
+      "fetched_at": "2026-09-22T02:37:46.088075+00:00"
+    },
+    {
+      "path": "postgresql/postgres-official.md",
+      "source_url": "https://raw.githubusercontent.com/docker-library/docs/48ef16afb82b18ceea354f4b3fd94d6cf88cc4f5/postgres/README.md",
+      "commit_sha": "48ef16afb82b18ceea354f4b3fd94d6cf88cc4f5",
+      "license": "Apache-2.0",
+      "sha256": "062794f34d4b1852e278f156953cd37137aa7aa90e5a5566ceccbc94c0358c50",
+      "word_count": 3483,
+      "product": "postgresql",
+      "fetched_at": "2026-09-22T02:37:46.820222+00:00"
+    },
+    {
+      "path": "postgresql/pgvector.md",
+      "source_url": "https://raw.githubusercontent.com/pgvector/pgvector/efa08fda9ec485d80292d0487a77939c087dedcc/README.md",
+      "commit_sha": "efa08fda9ec485d80292d0487a77939c087dedcc",
+      "license": "MIT",
+      "sha256": "54cb3a5f4344308476cb2378469ac77d10fbff415d1b5be66608bb386ce8f527",
+      "word_count": 5388,
+      "product": "postgresql",
+      "fetched_at": "2026-09-22T02:37:47.551825+00:00"
+    }
+  ]
+}
