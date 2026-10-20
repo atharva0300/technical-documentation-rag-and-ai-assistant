@@ -47,14 +47,16 @@ config. Only local Ollama is supported.
 
 | Model | Purpose | Notes |
 |-------|---------|-------|
-| `all-MiniLM-L6-v2` | Dense embedding (384 dim) | Loaded via sentence-transformers |
+| `BAAI/bge-base-en-v1.5` | Dense embedding (768 dim) | Loaded via sentence-transformers. Retrieval-contrastive-trained, not an STS model like the previous `all-MiniLM-L6-v2` (384 dim) — measurably stronger on MTEB's retrieval benchmark. Switching embedding models requires re-embedding the corpus (new column dimension + HNSW rebuild). |
+| `cross-encoder/nli-deberta-v3-small` | NLI entailment check (verifier Layer 3) | Loaded via sentence-transformers. Checks whether a cited chunk actually entails an answer sentence, not just lexical token overlap — same role production tools like Vectara's HHEM play in RAG faithfulness checking. |
 | `ms-marco-MiniLM-L-6-v2` | Cross-encoder reranker | Loaded via sentence-transformers |
 | `qwen2.5:3b` | Default local LLM | Requires Ollama running |
 
 ## Memory Constraints
 
 ~5.5 GiB available RAM (varies). Models loaded:
-- Embedding: ~91 MB
+- Embedding (bge-base-en-v1.5): ~440 MB
+- NLI entailment model: ~280 MB
 - Reranker: ~83 MB  
 - 3B LLM (if Ollama runs): ~1.8 GiB (GGUF q4_K_M)
 

@@ -2,6 +2,7 @@ import re
 import logging
 from typing import List, Dict, Any, Optional
 from app.config import settings
+from app.embeddings.model import EMBEDDING_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -10,12 +11,12 @@ _tokenizer = None
 
 def get_model_tokenizer():
     """Lazily load the real embedding-model tokenizer so chunk sizes are measured
-    the same way the embedding model (all-MiniLM-L6-v2, 256-token limit) will see them."""
+    the same way the embedding model (EMBEDDING_MODEL_NAME) will see them."""
     global _tokenizer
     if _tokenizer is None:
         try:
             from transformers import AutoTokenizer
-            _tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+            _tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_NAME)
         except Exception as e:
             logger.debug(f"Transformers AutoTokenizer unavailable, using word-count fallback: {e}")
             _tokenizer = False
@@ -25,8 +26,8 @@ def get_model_tokenizer():
 class TokenAwareChunker:
     """
     Token-aware, structure-preserving chunker for technical documentation.
-    Uses the real embedding model tokenizer (all-MiniLM-L6-v2) to guarantee chunks fit
-    within its 256-token sequence limit, instead of approximating size in words.
+    Uses the real embedding model's own tokenizer to guarantee chunks fit within
+    its sequence limit, instead of approximating size in words.
     """
 
     def __init__(self, max_tokens: Optional[int] = None, overlap_tokens: Optional[int] = None):

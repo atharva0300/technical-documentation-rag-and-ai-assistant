@@ -4,7 +4,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+# all-MiniLM-L6-v2 was trained for general sentence similarity (STS), not
+# specifically for retrieval ranking. bge-base-en-v1.5 is trained with a
+# contrastive query-passage retrieval objective and measurably outperforms
+# MiniLM on MTEB's retrieval benchmark -- a documented gap, not a guess.
+# Staying general-purpose (not a code/domain-specific model) matters here
+# because this project accepts arbitrary uploaded technical documentation,
+# not one fixed domain. NOTE: this is a 768-dim model (MiniLM was 384-dim) --
+# switching requires re-embedding the corpus; see docs/ENVIRONMENT.md.
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
 
 _model = None
 
