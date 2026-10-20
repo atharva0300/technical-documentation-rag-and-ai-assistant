@@ -13,6 +13,7 @@ python-dotenv
 rank_bm25
 langgraph
 mcp
+networkx
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-fastapi

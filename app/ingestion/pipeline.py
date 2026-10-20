@@ -10,6 +10,7 @@ from app.ingestion.cleaner import clean_text
 from app.ingestion.chunker import TokenAwareChunker
 from app.embeddings.model import generate_embedding, EMBEDDING_MODEL_NAME
 from app.retrieval.bm25 import invalidate_bm25_cache
+from app.graph.community_builder import rebuild_knowledge_graph
 
 logger = logging.getLogger(__name__)
 
@@ -193,11 +194,24 @@ def sync_directory(db: Session, directory_path: str) -> Dict[str, Any]:
         db.commit()
         invalidate_bm25_cache()
 
+    graph_result = {"status": "skipped", "reason": "no corpus changes"}
+    if ingested or updated or deleted_docs:
+        # Community detection is a corpus-level operation (see
+        # app.graph.community_builder) -- rebuilt once per sync, not per
+        # individual document, since community structure depends on the
+        # whole corpus's entity graph, not any single file.
+        try:
+            graph_result = rebuild_knowledge_graph(db)
+        except Exception as e:
+            logger.warning(f"Knowledge graph rebuild failed (sync still succeeded): {e}")
+            graph_result = {"status": "error", "error": str(e)}
+
     return {
         "status": "sync_complete",
         "ingested_count": len(ingested),
         "updated_count": len(updated),
         "skipped_count": len(skipped),
         "deleted_count": len(deleted_docs),
-        "deleted_sources": deleted_docs
+        "deleted_sources": deleted_docs,
+        "knowledge_graph": graph_result
     }

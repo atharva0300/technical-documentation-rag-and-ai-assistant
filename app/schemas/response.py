@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 
 
 class IngestResponse(BaseModel):
@@ -17,6 +17,15 @@ class SyncResponse(BaseModel):
     skipped_count: int
     deleted_count: int
     deleted_sources: List[str]
+    knowledge_graph: Optional[Dict[str, Any]] = None
+
+
+class GraphRebuildResponse(BaseModel):
+    status: str
+    communities: Optional[int] = None
+    chunks_processed: Optional[int] = None
+    edges: Optional[int] = None
+    reason: Optional[str] = None
 
 
 class DocumentResponse(BaseModel):

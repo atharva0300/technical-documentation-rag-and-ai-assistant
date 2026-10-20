@@ -13,8 +13,9 @@ from app.database.connection import get_db
 from app.database.models import Document, Conversation, Message
 from app.ingestion.pipeline import ingest_document, sync_directory
 from app.agents.graph import run_v2_agent_workflow_async
+from app.graph.community_builder import rebuild_knowledge_graph
 from app.schemas.query import IngestRequest, SyncRequest
-from app.schemas.response import IngestResponse, SyncResponse, DocumentResponse
+from app.schemas.response import IngestResponse, SyncResponse, DocumentResponse, GraphRebuildResponse
 
 router = APIRouter(prefix="/api/v2", tags=["v2-agent"])
 
@@ -250,6 +251,21 @@ def api_sync(request: SyncRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/documents/graph/rebuild", response_model=GraphRebuildResponse, dependencies=[Depends(verify_api_key)])
+def api_rebuild_graph(db: Session = Depends(get_db)):
+    """
+    Manually rebuilds the GraphRAG-lite entity/community graph (see
+    app/graph/community_builder.py) without waiting for the next
+    `/documents/sync` call. Community detection is corpus-level, so this
+    reprocesses every indexed chunk, not just recently uploaded ones.
+    """
+    try:
+        result = rebuild_knowledge_graph(db)
+        return GraphRebuildResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Knowledge graph rebuild failed: {str(e)}")
 
 
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(verify_api_key)])
