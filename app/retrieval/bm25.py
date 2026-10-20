@@ -38,16 +38,30 @@ def invalidate_bm25_cache():
     }
 
 def get_bm25_index(db: Session):
-    """Retrieve or build the cached BM25 index with content hash version validation."""
+    """Retrieve or build the cached BM25 index with content-version validation."""
     global _bm25_cache
-    
-    # Compute content version hash from db chunk ids + lengths
-    count_and_sum = db.query(Chunk.id).all()
-    if not count_and_sum:
+
+    # Version on chunk COUNT + each document's own content_hash + updated_at,
+    # not a sample of the first 10 chunk ids. The old id-sample hash missed:
+    # (a) a chunk's content edited in place (same id, same count -- never
+    #     invalidated), and (b) a delete+add pair that nets the same count
+    # and happens to leave the sampled ids unchanged. content_hash/updated_at
+    # change on every real content edit (see app.ingestion.pipeline), so this
+    # catches both.
+    rows = (
+        db.query(Document.id, Document.content_hash, Document.updated_at, Chunk.id)
+        .join(Chunk, Chunk.document_id == Document.id)
+        .all()
+    )
+    if not rows:
         _bm25_cache = {"bm25_index": None, "chunks": [], "hash_version": ""}
         return None, []
 
-    version_str = f"{len(count_and_sum)}_" + "_".join(str(c[0]) for c in count_and_sum[:10])
+    doc_versions = sorted({
+        f"{doc_id}:{content_hash}:{updated_at.isoformat() if updated_at else ''}"
+        for doc_id, content_hash, updated_at, _chunk_id in rows
+    })
+    version_str = f"{len(rows)}_" + "_".join(doc_versions)
     current_hash = hashlib.md5(version_str.encode()).hexdigest()
 
     if _bm25_cache["bm25_index"] is not None and _bm25_cache["hash_version"] == current_hash:
