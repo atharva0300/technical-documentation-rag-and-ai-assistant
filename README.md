@@ -1,14 +1,18 @@
 # Engineering AI Assistant Platform
 
-A multi-agent Retrieval-Augmented Generation (RAG) assistant over a bundled corpus of
-technical documentation (Kubernetes, Docker, FastAPI, PostgreSQL/pgvector, SQLAlchemy,
-Python asyncio), built with **LangGraph**, **Model Context Protocol (MCP)**, **FastAPI**,
-**PostgreSQL (pgvector)**, a local **Ollama** LLM (Qwen2.5:3b), and a **Vite + React 19** UI.
+A multi-agent Retrieval-Augmented Generation (RAG) assistant over arbitrary uploaded
+technical documentation, built with **LangGraph**, **Model Context Protocol (MCP)**,
+**FastAPI**, **PostgreSQL (pgvector)**, a local **Ollama** LLM (Qwen2.5:3b), and a
+**Vite + React 19** UI.
 
-It decomposes a question into sub-questions, retrieves evidence via hybrid search
-(dense + BM25, fused with RRF, cross-encoder reranked), generates a grounded answer with
-inline citations, and runs that answer through a deterministic (zero-LLM) verifier that can
-reject or trim an ungrounded claim and trigger a bounded retry before the answer is returned.
+It classifies each query with an embedding-similarity semantic router (not a keyword list),
+selects an MCP tool dynamically from the server's live tool manifest, and routes retrieval
+down one of three strategies: plain hybrid search (dense + BM25 + RRF, cross-encoder
+reranked) for point lookups, or GraphRAG-lite local/global search for relational and
+corpus-wide "scattered across many pages" queries. The generated answer carries inline
+citations and is checked by a verifier that grounds each citation against its specific
+cited chunk — both lexically and via NLI entailment — before triggering a bounded retry on
+an ungrounded claim.
 
 ---
 
@@ -20,30 +24,38 @@ graph TD
     Proxy -->|Authenticated REST / SSE| FastAPI[FastAPI Backend /api/v2]
 
     subgraph "LangGraph Supervisor Graph"
-        FastAPI --> MemoryLoader[Memory Loader Node]
-        MemoryLoader --> Planner[Planner Agent: Fast-Path + LLM Fallback]
+        FastAPI --> MemoryLoader[Memory Loader Node<br/>warms live MCP tool manifest]
+        MemoryLoader --> Planner[Planner Agent:<br/>Semantic Router + LLM Fallback]
 
-        Planner -->|Sub-questions, one retrieval call each, sequentially| Retriever[Retrieval Agent]
+        Planner -->|retrieval_strategy| Route{Route by strategy}
+        Route -->|point_lookup| InvokeTools[Invoke Tools Node]
+        Route -->|relational| LocalSearch[Local Search:<br/>entity graph + vector fusion]
+        Route -->|exhaustive| GlobalSearch[Global Search:<br/>map-reduce over community summaries]
 
-        Retriever -->|search_documentation| MCPClient[MCP Client]
+        InvokeTools -->|tool resolved from live manifest, not hardcoded| MCPClient[MCP Client]
         MCPClient -->|Streamable HTTP, bearer auth| MCPServer[MCP Server :8765]
 
         subgraph "Hybrid Search Engine"
             MCPServer -->|Vector Cosine| PGVector[(PostgreSQL / pgvector HNSW)]
             MCPServer -->|Technical Token BM25| BM25[(BM25 Lexical Engine)]
 
-            PGVector --> RRF[Reciprocal Rank Fusion]
+            PGVector --> RRF[Lexical-Specificity-Weighted RRF]
             BM25 --> RRF
             RRF --> Reranker[Cross-Encoder Reranker]
         end
 
+        LocalSearch -.->|falls back if no graph match| InvokeTools
+        GlobalSearch -.->|falls back if graph unbuilt/empty| InvokeTools
+
         Reranker --> Merger[Evidence Merger Node]
+        LocalSearch --> Merger
+        GlobalSearch --> Merger
         Merger --> Answerer[Answerer Agent]
-        Answerer --> Verifier[3-Layer Deterministic Verifier]
+        Answerer --> Verifier[Verifier: citation syntax +<br/>per-citation token grounding +<br/>NLI entailment]
 
         Verifier -->|VALID / PARTIAL| Finish[Final Answer]
         Verifier -->|RETRY: citation format| Answerer
-        Verifier -->|RETRY: ungrounded content| Retriever
+        Verifier -->|RETRY: ungrounded content| Route
     end
 
     Finish -->|SSE: live tokens on the first attempt,<br/>one answer_replaced event if retried| User
@@ -53,25 +65,42 @@ graph TD
 
 ## Key Technical Features
 
-- **LangGraph StateGraph Supervisor**: Planner → Retriever → Evidence Merger → Answerer →
-  Verifier, with hard step (`MAX_AGENT_STEPS`), LLM-call, and tool-call budgets enforced
-  per request.
+- **LangGraph StateGraph Supervisor**: Memory Loader → Planner → one of three retrieval
+  nodes (by `retrieval_strategy`) → Evidence Merger → Answerer → Verifier, with hard step
+  (`MAX_AGENT_STEPS`), LLM-call, and tool-call budgets enforced per request.
+- **Semantic router, not a keyword list**: intent/retrieval-strategy classification
+  (`app/retrieval/semantic_router.py`) matches the query against example utterances per
+  category via embedding cosine similarity, generalizing across phrasing instead of
+  enumerating it — falls through to an LLM classification pass only below a confidence
+  threshold.
+- **Live, generic MCP tool selection**: the planner resolves which tool to call by
+  inspecting the MCP server's *live* `list_tools()` manifest (`app/mcp/client.py`), never a
+  hardcoded tool name. Adding, renaming, or removing a tool on the server needs no planner
+  change. A single `_invoke_selected_tool` helper is the only place any tool is actually
+  called, shared by all three retrieval strategies.
+- **GraphRAG-lite** (`app/graph/`): entity extraction + Louvain community detection over the
+  corpus. "Relational" queries ("what depends on X") get entity-anchored graph traversal
+  fused into RRF as a third ranked source; "exhaustive" queries ("every place X is
+  mentioned") get map-reduce over pre-built community summaries — the actual fix for
+  answers scattered across many pages, which widening `top_k` cannot cover.
 - **Hybrid RAG Pipeline**: pgvector cosine ANN search (HNSW index) + BM25 lexical search
   with a technical tokenizer that preserves `--memory`-style flags, `v1.2.3` versions, and
-  paths — fused with Reciprocal Rank Fusion and reranked with a cross-encoder
-  (`ms-marco-MiniLM-L-6-v2`). `hybrid_rerank` is the only strategy the public API and the
-  MCP tool expose; `dense`/`bm25`/`hybrid` remain internal `app.retrieval.search` functions
-  used by the offline evaluation scripts to compare strategies.
-- **3-Layer Deterministic Verifier**: zero-LLM check of citation syntax/range, technical-token
-  grounding, and sentence-level claim support. A citation-format failure (missing/out-of-range
-  `[n]` tags) regenerates from the *same* evidence; an ungrounded-content failure re-retrieves.
-  Bounded by `MAX_RETRIES`.
-- **MCP tool-calling**: a standalone MCP server (Streamable HTTP, bearer-auth) exposes exactly
-  one tool, `search_documentation` — kept deliberately small and deliberately real, rather than
-  allow-listing tools no planner path can reach.
-- **Process-wide circuit breaker**: the MCP client trips after repeated consecutive tool
-  failures and stays tripped across requests (not per-request), the way a circuit breaker
-  needs to behave to mean anything.
+  paths — fused with a lexical-specificity-weighted Reciprocal Rank Fusion (the query's own
+  BM25 IDF profile against the current corpus biases the dense/BM25 blend per query, with
+  no hardcoded vocabulary) and reranked with a cross-encoder (`ms-marco-MiniLM-L-6-v2`).
+- **Verifier**: citation syntax/range check, then per-citation (not pooled) technical-token
+  grounding, then NLI entailment (`cross-encoder/nli-deberta-v3-small`) between the cited
+  chunk and the sentence citing it — catches "right term, wrong claim" errors a lexical-only
+  check misses. A citation-format failure regenerates from the *same* evidence; an
+  ungrounded-content failure re-retrieves via the same `retrieval_strategy`. Bounded by
+  `MAX_RETRIES`.
+- **MCP tool-calling**: a standalone MCP server (Streamable HTTP, bearer-auth) currently
+  exposes one tool, `search_documentation` — but nothing in the client/planner path assumes
+  that; see "Live, generic MCP tool selection" above.
+- **Process-wide circuit breaker with half-open recovery**: the MCP client trips after
+  repeated consecutive tool failures and stays tripped across requests (not per-request).
+  After a cooldown it allows exactly one trial call through (half-open); success closes the
+  breaker again, failure reopens it — not a one-way trip requiring a process restart.
 - **Correctly-sized LLM context**: Ollama defaults every model to a 2048-token context window
   regardless of what it actually supports. `OLLAMA_NUM_CTX` (default `8192`) is explicitly set
   on every call so Qwen2.5:3b (32K native context) isn't silently truncating this pipeline's
@@ -91,13 +120,29 @@ graph TD
 
 ## Quickstart: Running Locally
 
-The platform requires 4 local services.
+The platform requires 4 local services. `scripts/run_backend.sh` brings up the three
+backend ones (Postgres, MCP server, API) in one command — see below. The frontend is still
+started separately.
 
 ### Prerequisites
 1. **Python 3.11+** virtual environment at `.venv/`
 2. **Node.js 20+** and `npm`
 3. **Docker** (for PostgreSQL pgvector)
 4. **Ollama** (local LLM runtime, `ollama pull qwen2.5:3b`)
+
+### Fastest path — one script
+
+```bash
+./scripts/run_backend.sh
+```
+
+Starts/confirms Ollama (serving + model pulled), brings up `postgres`, `mcp-server`, and
+`api` via `docker compose`, waits for all three to report healthy, and prints the API docs
+URL. Pass `--with-frontend` to also build and start the `frontend` compose service. Run it
+with `--help` for every flag (`--no-ollama`, `--rebuild`, `--down`, ...). This is what the
+manual steps below do by hand.
+
+### Manual steps (what the script automates)
 
 ### Step 1 — Start PostgreSQL pgvector
 
@@ -178,12 +223,13 @@ make test-dataset
 │   ├── core/            # Config, LLM gateway
 │   ├── database/        # SQLAlchemy models and connection manager
 │   ├── embeddings/      # SentenceTransformer embedding model wrapper
+│   ├── graph/           # GraphRAG-lite: entity extraction, community detection, local/global search
 │   ├── ingestion/       # Token-aware chunker + ingestion pipeline
-│   ├── mcp/             # MCP client with a process-wide circuit breaker
-│   └── retrieval/       # Dense, BM25, RRF, cross-encoder reranker, unified search
+│   ├── mcp/             # MCP client: half-open circuit breaker + live tool manifest cache
+│   └── retrieval/       # Dense, BM25, RRF, semantic router, query analysis, reranker, unified search
 ├── mcp_server/          # MCP server exposing the one search_documentation tool
 ├── frontend/            # Vite + React 19 SPA (src/) and the Express proxy (server/)
-├── scripts/             # eval_agent.py (live graph eval), split_dataset.py
+├── scripts/             # run_backend.sh (one-shot backend startup), eval_agent.py, split_dataset.py
 ├── tests/               # Unit, agent graph, mcp, api, and security tests
 └── docs/                # API reference, retrieval benchmarks, environment variables
 ```

@@ -102,10 +102,27 @@ Uploads and ingests a markdown/text file (multipart form, field `file`).
 
 ### 1.7 `POST /api/v2/documents/sync`
 Syncs a directory (`{"directory_path": "data/documents"}`): ingests new/changed files,
-deletes DB records for files no longer on disk.
+deletes DB records for files no longer on disk. If anything changed, also rebuilds the
+GraphRAG-lite knowledge graph (see 1.9) and returns its result in the `knowledge_graph`
+field of the response.
 
 ### 1.8 `DELETE /api/v2/documents/{document_id}`
 Cascades deletion of a document and its indexed vector chunks. Returns `204 No Content`.
+
+### 1.9 `POST /api/v2/documents/graph/rebuild`
+Manually rebuilds the GraphRAG-lite entity/community graph (`app/graph/community_builder.py`)
+without waiting for the next `/documents/sync` call. Reprocesses every indexed chunk, since
+community detection is corpus-level, not per-document.
+
+#### Response Body (`200 OK`)
+```json
+{
+  "status": "success",
+  "communities": 7,
+  "chunks_processed": 142,
+  "edges": 318
+}
+```
 
 ---
 

@@ -30,10 +30,10 @@ services:
       # Ollama defaults num_ctx to 2048 regardless of the model's real context length
       # (Qwen2.5:3b natively supports 32768) — see app/core/llm_gateway.py.
       - OLLAMA_NUM_CTX=8192
-      - EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+      - EMBEDDING_MODEL_NAME=BAAI/bge-base-en-v1.5
       - RERANKER_MODEL_NAME=cross-encoder/ms-marco-MiniLM-L-6-v2
-      # Calibrated to the embedding model's 256-token sequence limit — matches .env.example;
-      # the compose file used to override these to 350/50/500, overflowing that limit.
+      - NLI_MODEL_NAME=cross-encoder/nli-deberta-v3-small
+      # Calibrated to bge-base-en-v1.5's 512-token sequence limit — matches .env.example.
       - CHUNK_SIZE=200
       - CHUNK_OVERLAP=30
       - MAX_CHUNK_SIZE=240
