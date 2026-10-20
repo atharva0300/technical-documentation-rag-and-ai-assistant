@@ -8,7 +8,8 @@ class V2AgentState(TypedDict):
     rewritten_query: Optional[str]
     history: List[Dict[str, str]]
     
-    intent: Optional[str]  # single_lookup, multi_hop, comparison, exact_term, chitchat, out_of_scope
+    intent: Optional[str]  # single_lookup, multi_hop, comparison, chitchat, out_of_scope
+    retrieval_strategy: Optional[str]  # point_lookup, exhaustive, relational (see app/graph/)
     needs_retrieval: bool
     needs_tools: bool
     selected_tool: Optional[str]

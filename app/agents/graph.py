@@ -15,13 +15,23 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-def load_memory_node(state: V2AgentState) -> Dict[str, Any]:
+async def load_memory_node(state: V2AgentState) -> Dict[str, Any]:
     history = state.get("history") or []
     if not history and state.get("conversation_id"):
         history = MemoryLoader.load_history(state["conversation_id"])
 
     original_query = state["query"]
     rewritten = MemoryLoader.rewrite_query(original_query, history)
+
+    # Opportunistically refresh the live MCP tool manifest (cheap: no-ops if
+    # still within TOOL_MANIFEST_TTL_SECONDS of the last fetch). This is what
+    # keeps `PlannerAgent.plan()`'s sync `mcp_client.get_cached_tools()` read
+    # actually live, without plan_node itself needing to be async or await a
+    # network call on every single query.
+    try:
+        await mcp_client.list_tools_async()
+    except Exception as e:
+        logger.warning(f"Tool manifest refresh failed (using whatever is cached): {e}")
 
     return {
         "history": history,
@@ -38,6 +48,7 @@ def plan_node(state: V2AgentState) -> Dict[str, Any]:
 
     return {
         "intent": plan.intent,
+        "retrieval_strategy": plan.retrieval_strategy,
         "needs_retrieval": plan.needs_retrieval,
         "needs_tools": plan.needs_tools,
         "selected_tool": plan.selected_tool,
@@ -49,6 +60,7 @@ def plan_node(state: V2AgentState) -> Dict[str, Any]:
         "trace_events": [{
             "node": "planner",
             "intent": plan.intent,
+            "retrieval_strategy": plan.retrieval_strategy,
             "sub_questions": plan.sub_questions,
             "needs_retrieval": plan.needs_retrieval,
             "needs_tools": plan.needs_tools,
@@ -57,70 +69,27 @@ def plan_node(state: V2AgentState) -> Dict[str, Any]:
         }]
     }
 
-async def mcp_executor_node(state: V2AgentState) -> Dict[str, Any]:
-    query = state.get("rewritten_query") or state["query"]
-    tool_count = state.get("tool_call_count", 0)
-    selected_tool = state.get("selected_tool")
-    tool_args = state.get("tool_args")
-    needs_tools = state.get("needs_tools", False)
-
-    mcp_evidence = []
-    executed_calls = 0
-    error_msg = None
-
-    if needs_tools:
-        if not selected_tool:
-            error_msg = "Controlled tool-selection error: selected_tool missing when tools required."
-            logger.warning(error_msg)
-        elif selected_tool not in PlannerAgent.ALLOWED_TOOLS:
-            error_msg = f"Controlled authorization error: tool '{selected_tool}' is not allowlisted."
-            logger.warning(error_msg)
-        else:
-            if tool_count < settings.MAX_TOOL_CALLS:
-                try:
-                    args = tool_args or {"query": query}
-                    res = await mcp_client.call_tool_async(selected_tool, args)
-                    executed_calls += 1
-                    if res.get("status") == "success" and res.get("result"):
-                        mcp_evidence.append({
-                            "source": f"mcp:{selected_tool}",
-                            "content": str(res["result"]),
-                            "similarity": 1.0,
-                            "metadata": args
-                        })
-                    elif res.get("status") == "error":
-                        error_msg = f"MCP tool '{selected_tool}' returned error: {res.get('error')}"
-                except Exception as e:
-                    error_msg = f"MCP executor tool call error for {selected_tool}: {e}"
-                    logger.warning(error_msg)
-
-    return {
-        "evidence": mcp_evidence,
-        "tool_call_count": mcp_client.total_tool_calls,
-        "llm_call_count": llm_gateway.llm_call_count,
-        "step_count": state.get("step_count", 0) + 1,
-        "error": error_msg,
-        "trace_events": [{
-            "node": "mcp_executor",
-            "executed_calls": executed_calls,
-            "evidence_retrieved": len(mcp_evidence),
-            "selected_tool": selected_tool,
-            "error": error_msg
-        }]
-    }
-
-async def retrieve_node(state: V2AgentState) -> Dict[str, Any]:
+async def _invoke_selected_tool(state: V2AgentState) -> List[Dict[str, Any]]:
+    """
+    Shared retrieval helper: calls whatever tool the planner selected
+    (`state["selected_tool"]`, resolved generically against the live MCP
+    tool manifest -- see app.agents.planner) once per sub-question. This is
+    the one place tool invocation actually happens, used by the plain
+    point-lookup path (`invoke_tools_node`) AND as the fallback for
+    local/global graph search when the knowledge graph has nothing useful
+    for a given query -- so there's exactly one code path that calls an MCP
+    tool, and it never hardcodes which one.
+    """
     sub_questions = state.get("sub_questions") or [state.get("rewritten_query") or state["query"]]
     sub_questions = sub_questions[:settings.MAX_SUB_QUESTIONS]
     filters = state.get("filters")
     retry_count = state.get("retry_count", 0)
+    selected_tool = state.get("selected_tool")
+    tool_args = state.get("tool_args")
 
-    # `evidence` is a plain (non-accumulating) state field — see app/agents/state.py.
-    # mcp_executor_node only ever runs once, before the first retrieval pass, so on that
-    # first pass we fold in whatever it already gathered. On a retry, evidence starts from
-    # a clean slate instead of piling new results onto stale ones from the rejected attempt
-    # (which also shifted citation numbering between attempts — see the audit's Mistake #2).
-    carried_evidence = (state.get("evidence") or []) if retry_count == 0 else []
+    if not selected_tool:
+        logger.info("No tool resolved for retrieval — the live MCP manifest had no matching tool.")
+        return []
 
     # On retry: broaden query while preserving exact CLI hyphens (--memory, --max-old-space-size) and adding verifier feedback
     if retry_count > 0:
@@ -134,21 +103,144 @@ async def retrieve_node(state: V2AgentState) -> Dict[str, Any]:
             broadened.append(stripped)
         sub_questions = broadened
 
-    all_evidence = list(carried_evidence)
+    all_evidence = []
     for sq in sub_questions:
-        results = await RetrievalAgent.retrieve_subquestion_async(query=sq, top_k=5, filters=filters)
+        results = await RetrievalAgent.retrieve_subquestion_async(
+            query=sq, top_k=5, filters=filters, tool_name=selected_tool, tool_args=tool_args
+        )
         all_evidence.extend(results)
+    return all_evidence
+
+async def invoke_tools_node(state: V2AgentState) -> Dict[str, Any]:
+    """
+    Generic tool-invocation node for the "point_lookup" retrieval strategy
+    (the common case). Replaces the old `mcp_executor_node` + `retrieve_node`
+    pair, which had two independent paths to the same tool: one gated by the
+    planner's `needs_tools` decision, and one (`RetrievalAgent`) that called
+    `search_documentation` unconditionally regardless of what the planner
+    decided -- that unconditional call was the actual deterministic-calling
+    bug. Now there is exactly one call path (`_invoke_selected_tool`), and it
+    only runs when `needs_retrieval` is true and the planner (or its
+    structural fast-path resolution) actually selected a tool.
+    """
+    retry_count = state.get("retry_count", 0)
+    needs_retrieval = state.get("needs_retrieval", True)
+
+    # `evidence` is a plain (non-accumulating) state field — see app/agents/state.py.
+    # On a verifier retry, evidence starts from a clean slate instead of piling new
+    # results onto stale ones from the rejected attempt (which also shifted citation
+    # numbering between attempts — see the audit's Mistake #2).
+    carried_evidence = (state.get("evidence") or []) if retry_count == 0 else []
+
+    new_evidence = []
+    error_msg = None
+    if needs_retrieval:
+        new_evidence = await _invoke_selected_tool(state)
+        if not state.get("selected_tool"):
+            error_msg = "Retrieval was needed but no MCP tool currently matches (live tool manifest had no query-accepting tool)."
+
+    all_evidence = list(carried_evidence) + new_evidence
 
     return {
         "evidence": all_evidence,
         "tool_call_count": mcp_client.total_tool_calls,
         "llm_call_count": llm_gateway.llm_call_count,
         "step_count": state.get("step_count", 0) + 1,
+        "error": error_msg,
         "trace_events": [{
-            "node": "retriever",
-            "retry_count": retry_count,
-            "sub_questions_count": len(sub_questions),
-            "evidence_retrieved": len(all_evidence)
+            "node": "invoke_tools",
+            "selected_tool": state.get("selected_tool"),
+            "evidence_retrieved": len(all_evidence),
+            "error": error_msg
+        }]
+    }
+
+async def local_search_node(state: V2AgentState) -> Dict[str, Any]:
+    """
+    GraphRAG-lite local search for "relational" queries (what depends on X,
+    what's affected by X) — entity-anchored graph traversal fused with
+    ordinary dense+BM25 retrieval via RRF (see app/graph/local_search.py).
+    Falls back to plain tool-based retrieval if the graph has nothing
+    relevant for this query (e.g. no entity match, or the graph hasn't been
+    built yet for this corpus).
+    """
+    from app.database.connection import SessionLocal
+    from app.graph.local_search import local_search as graph_local_search
+
+    query = state.get("rewritten_query") or state["query"]
+    filters = state.get("filters")
+
+    results = []
+    db = SessionLocal()
+    try:
+        results = graph_local_search(db, query, top_k=5, filters=filters)
+    except Exception as e:
+        logger.warning(f"Local graph search failed, falling back to tool retrieval: {e}")
+    finally:
+        db.close()
+
+    fallback_used = False
+    if not results:
+        results = await _invoke_selected_tool(state)
+        fallback_used = True
+
+    return {
+        "evidence": results,
+        "step_count": state.get("step_count", 0) + 1,
+        "llm_call_count": llm_gateway.llm_call_count,
+        "tool_call_count": mcp_client.total_tool_calls,
+        "trace_events": [{"node": "local_search", "fallback_used": fallback_used, "evidence_retrieved": len(results)}]
+    }
+
+async def global_search_node(state: V2AgentState) -> Dict[str, Any]:
+    """
+    GraphRAG-lite global search for "exhaustive" queries (find every place X
+    is mentioned, scattered across the corpus) — map-reduce over pre-built
+    community summaries (see app/graph/global_search.py) instead of ranking
+    individual chunks, which has no notion of whole-corpus coverage no
+    matter how `top_k` is tuned. Falls back to plain tool-based retrieval if
+    no knowledge graph has been built for this corpus yet, or nothing
+    relevant was found in it.
+    """
+    from app.database.connection import SessionLocal
+    from app.graph.global_search import answer_global
+
+    query = state.get("rewritten_query") or state["query"]
+
+    result = {"citations": [], "graph_available": False}
+    db = SessionLocal()
+    try:
+        result = answer_global(db, query)
+    except Exception as e:
+        logger.warning(f"Global graph search failed, falling back to tool retrieval: {e}")
+    finally:
+        db.close()
+
+    fallback_used = False
+    if not result.get("graph_available") or not result.get("citations"):
+        evidence = await _invoke_selected_tool(state)
+        fallback_used = True
+    else:
+        evidence = [
+            {
+                "chunk_id": f"community_{c['citation_id']}",
+                "source": c["source"],
+                "content": c["content"],
+                "similarity": 1.0,
+            }
+            for c in result["citations"]
+        ]
+
+    return {
+        "evidence": evidence,
+        "step_count": state.get("step_count", 0) + 1,
+        "llm_call_count": llm_gateway.llm_call_count,
+        "tool_call_count": mcp_client.total_tool_calls,
+        "trace_events": [{
+            "node": "global_search",
+            "fallback_used": fallback_used,
+            "communities_used": result.get("communities_used", 0),
+            "evidence_retrieved": len(evidence)
         }]
     }
 
@@ -275,20 +367,29 @@ def verify_node(state: V2AgentState) -> Dict[str, Any]:
     }
 
 # Route Decisions
+def _retrieval_node_for_strategy(state: V2AgentState) -> str:
+    """
+    Picks which retrieval node handles this query based on the planner's
+    `retrieval_strategy` (point_lookup / exhaustive / relational — see
+    app.agents.planner.PlanOutput), used both for the initial route after
+    planning and for a verifier retry that needs another retrieval pass, so
+    a retry re-runs the SAME strategy rather than always falling back to
+    plain tool retrieval.
+    """
+    strategy = state.get("retrieval_strategy", "point_lookup")
+    if strategy == "exhaustive":
+        return "global_search_node"
+    if strategy == "relational":
+        return "local_search_node"
+    return "invoke_tools_node"
+
 def route_after_planner(state: V2AgentState) -> str:
     intent = state.get("intent")
     if intent in ("chitchat", "out_of_scope"):
         return "answer_node"
-    if state.get("needs_tools"):
-        return "mcp_executor_node"
-    if state.get("needs_retrieval", True):
-        return "retrieve_node"
-    return "answer_node"
-
-def route_after_mcp_executor(state: V2AgentState) -> str:
-    if state.get("needs_retrieval", True):
-        return "retrieve_node"
-    return "evidence_merger_node"
+    if not state.get("needs_retrieval", True):
+        return "answer_node"
+    return _retrieval_node_for_strategy(state)
 
 def route_after_verifier(state: V2AgentState) -> str:
     status = state.get("verification_status", "VALID")
@@ -306,8 +407,8 @@ def route_after_verifier(state: V2AgentState) -> str:
         if retry_reason == "citation_format":
             return "answer_node"
         # An ungrounded-content failure means the retrieved evidence itself didn't support
-        # the claims — that's what re-retrieving is actually for.
-        return "retrieve_node"
+        # the claims — that's what re-retrieving (via the same strategy) is actually for.
+        return _retrieval_node_for_strategy(state)
 
     return END
 
@@ -316,8 +417,9 @@ builder = StateGraph(V2AgentState)
 
 builder.add_node("load_memory_node", load_memory_node)
 builder.add_node("plan_node", plan_node)
-builder.add_node("mcp_executor_node", mcp_executor_node)
-builder.add_node("retrieve_node", retrieve_node)
+builder.add_node("invoke_tools_node", invoke_tools_node)
+builder.add_node("local_search_node", local_search_node)
+builder.add_node("global_search_node", global_search_node)
 builder.add_node("evidence_merger_node", evidence_merger_node)
 builder.add_node("answer_node", answer_node)
 builder.add_node("verify_node", verify_node)
@@ -326,37 +428,25 @@ builder.set_entry_point("load_memory_node")
 
 builder.add_edge("load_memory_node", "plan_node")
 
-builder.add_conditional_edges(
-    "plan_node",
-    route_after_planner,
-    {
-        "mcp_executor_node": "mcp_executor_node",
-        "retrieve_node": "retrieve_node",
-        "answer_node": "answer_node"
-    }
-)
+_RETRIEVAL_ROUTE_MAP = {
+    "invoke_tools_node": "invoke_tools_node",
+    "local_search_node": "local_search_node",
+    "global_search_node": "global_search_node",
+    "answer_node": "answer_node",
+}
 
-builder.add_conditional_edges(
-    "mcp_executor_node",
-    route_after_mcp_executor,
-    {
-        "retrieve_node": "retrieve_node",
-        "evidence_merger_node": "evidence_merger_node"
-    }
-)
+builder.add_conditional_edges("plan_node", route_after_planner, _RETRIEVAL_ROUTE_MAP)
 
-builder.add_edge("retrieve_node", "evidence_merger_node")
+builder.add_edge("invoke_tools_node", "evidence_merger_node")
+builder.add_edge("local_search_node", "evidence_merger_node")
+builder.add_edge("global_search_node", "evidence_merger_node")
 builder.add_edge("evidence_merger_node", "answer_node")
 builder.add_edge("answer_node", "verify_node")
 
 builder.add_conditional_edges(
     "verify_node",
     route_after_verifier,
-    {
-        "retrieve_node": "retrieve_node",
-        "answer_node": "answer_node",
-        END: END
-    }
+    {**_RETRIEVAL_ROUTE_MAP, END: END}
 )
 
 v2_supervisor_graph = builder.compile()
@@ -373,6 +463,7 @@ async def run_v2_agent_workflow_async(
         "rewritten_query": None,
         "history": [],
         "intent": None,
+        "retrieval_strategy": "point_lookup",
         "needs_retrieval": True,
         "needs_tools": False,
         "selected_tool": None,
