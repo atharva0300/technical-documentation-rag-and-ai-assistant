@@ -23,9 +23,18 @@ TEST_EVAL_SUITE = [
         "expected_refusal": False
     },
     {
+        # "exact_term" is a dataset/evaluation CATEGORY label (a question-type
+        # tag used for benchmark coverage), not a planner `intent` value --
+        # lexical-specificity handling for CLI-flag-style queries now lives in
+        # the retrieval-fusion layer (app.retrieval.query_analysis), driven by
+        # the corpus's own BM25 statistics rather than a planner fast-path
+        # hardcoded to this demo's vocabulary. The planner still classifies
+        # this query as single_lookup (or whatever the semantic router/LLM
+        # decides); what matters for this category is that retrieval actually
+        # runs and the flag text survives verbatim, not a distinct intent value.
         "category": "exact_term",
         "query": "What does the --memory flag do in PostgreSQL?",
-        "expected_intent": "exact_term",
+        "expected_intent": "single_lookup",
         "expected_refusal": False
     },
     {

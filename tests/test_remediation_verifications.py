@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from app.config import settings
 from app.api.v2.routes import verify_api_key, AgentQueryRequest
 from app.agents.planner import PlannerAgent, PlanOutput
-from app.agents.graph import mcp_executor_node, retrieve_node, plan_node
+from app.agents.graph import invoke_tools_node, plan_node
 from app.agents.analysis import EvidenceMerger
 from app.agents.state import V2AgentState
 from app.core.llm_gateway import llm_gateway, LLMBudgetExhaustedError
@@ -14,6 +14,12 @@ from app.mcp.client import MCPClient
 from app.retrieval.bm25 import search_bm25
 from app.ingestion.chunker import TokenAwareChunker
 from mcp_server.server import AuthMiddleware
+
+SEARCH_DOC_TOOL = {
+    "name": "search_documentation",
+    "description": "Search indexed technical documentation using hybrid retrieval.",
+    "input_schema": {"properties": {"query": {"type": "string"}, "top_k": {"type": "integer"}}},
+}
 
 def test_verify_api_key_strict_rejection():
     """Verify that verify_api_key rejects missing, empty, or invalid API keys with 401 HTTP exception."""
@@ -32,35 +38,64 @@ def test_verify_api_key_strict_rejection():
     valid = verify_api_key(settings.API_KEY)
     assert valid == settings.API_KEY
 
-def test_planner_only_allows_search_documentation():
-    """search_documentation is the only MCP tool the server exposes; the planner must never select anything else."""
-    assert PlannerAgent.ALLOWED_TOOLS == {"search_documentation"}
-
+def test_planner_selects_tool_dynamically_from_live_manifest():
+    """
+    The planner must never hardcode a tool name — it selects from whatever
+    `available_tools` reports (normally the MCP server's live `list_tools`
+    manifest, injected here for a deterministic test), and must reject
+    anything the LLM proposes that isn't in that manifest.
+    """
     def mock_llm_fn(user_query: str, system: str) -> str:
         import json
+        # The tool manifest must be visible to the LLM via the system prompt.
+        assert "search_documentation" in system
         return json.dumps({
             "intent": "single_lookup",
+            "retrieval_strategy": "point_lookup",
             "needs_retrieval": True,
-            "needs_tools": True,
             "selected_tool": "search_documentation",
             "sub_questions": [user_query],
             "reasoning": "needs documentation lookup"
         })
 
-    plan = PlannerAgent.plan("some ambiguous query", llm_fn=mock_llm_fn)
+    plan = PlannerAgent.plan("some ambiguous query", llm_fn=mock_llm_fn, available_tools=[SEARCH_DOC_TOOL])
     assert plan.selected_tool == "search_documentation"
-    assert plan.selected_tool in PlannerAgent.ALLOWED_TOOLS
+
+
+def test_planner_rejects_tool_not_in_live_manifest():
+    """A tool the LLM proposes that isn't in the live manifest must be nulled out, not trusted."""
+    def mock_llm_fn(user_query: str, system: str) -> str:
+        import json
+        return json.dumps({
+            "intent": "single_lookup",
+            "retrieval_strategy": "point_lookup",
+            "needs_retrieval": True,
+            "selected_tool": "unauthorized_tool_xyz",
+            "sub_questions": [user_query],
+            "reasoning": "hallucinated tool"
+        })
+
+    plan = PlannerAgent.plan("some ambiguous query", llm_fn=mock_llm_fn, available_tools=[SEARCH_DOC_TOOL])
+    assert plan.selected_tool != "unauthorized_tool_xyz"
+
 
 @pytest.mark.asyncio
-async def test_mcp_executor_node_allowlist_execution():
-    """Verify mcp_executor_node executes selected_tool when present in allowlist."""
+async def test_invoke_tools_node_executes_selected_tool_generically():
+    """
+    invoke_tools_node must call whatever tool the planner selected, via the
+    generic RetrievalAgent path — no tool name is hardcoded in the graph
+    node itself. needs_retrieval is the single gate now (needs_tools is
+    informational only), unlike the old mcp_executor_node which had a second,
+    independent gate that `retrieve_node` bypassed entirely.
+    """
     state: V2AgentState = {
         "conversation_id": "test_conv",
         "query": "explain --memory flag",
         "rewritten_query": None,
         "history": [],
-        "intent": "exact_term",
-        "needs_retrieval": False,
+        "intent": "single_lookup",
+        "retrieval_strategy": "point_lookup",
+        "needs_retrieval": True,
         "needs_tools": True,
         "selected_tool": "search_documentation",
         "tool_args": {"query": "explain --memory flag"},
@@ -80,24 +115,25 @@ async def test_mcp_executor_node_allowlist_execution():
         "error": None
     }
 
-    with patch("app.agents.graph.mcp_client.call_tool_async", return_value={"status": "success", "result": "[]"}) as mock_call:
-        res = await mcp_executor_node(state)
-        mock_call.assert_called_once_with("search_documentation", {"query": "explain --memory flag"})
-        assert len(res["evidence"]) == 1
-        assert res["evidence"][0]["source"] == "mcp:search_documentation"
+    with patch("app.agents.retriever.mcp_client.call_tool_async", return_value={"status": "success", "result": "[]"}) as mock_call:
+        res = await invoke_tools_node(state)
+        mock_call.assert_called_once_with("search_documentation", {"query": "explain --memory flag", "top_k": 5})
+        assert res["error"] is None
+
 
 @pytest.mark.asyncio
-async def test_retrieve_node_preserves_cli_hyphens():
-    """Verify retrieve_node preserves exact CLI hyphens (--memory, --max-old-space-size) during retry broadening."""
+async def test_invoke_tools_node_preserves_cli_hyphens_on_retry():
+    """Verify invoke_tools_node preserves exact CLI hyphens (--memory, --max-old-space-size) during retry broadening."""
     state: V2AgentState = {
         "conversation_id": "test_cli",
         "query": "--memory limit",
         "rewritten_query": None,
         "history": [],
-        "intent": "exact_term",
+        "intent": "single_lookup",
+        "retrieval_strategy": "point_lookup",
         "needs_retrieval": True,
-        "needs_tools": False,
-        "selected_tool": None,
+        "needs_tools": True,
+        "selected_tool": "search_documentation",
         "tool_args": None,
         "sub_questions": ["--memory limit", "--max-old-space-size"],
         "filters": None,
@@ -116,8 +152,8 @@ async def test_retrieve_node_preserves_cli_hyphens():
     }
 
     with patch("app.agents.graph.RetrievalAgent.retrieve_subquestion_async", return_value=[]) as mock_retrieve:
-        await retrieve_node(state)
-        called_queries = [call[1]["query"] for call in mock_retrieve.call_args_list]
+        await invoke_tools_node(state)
+        called_queries = [call.kwargs["query"] for call in mock_retrieve.call_args_list]
         for q in called_queries:
             assert q.startswith("--memory") or q.startswith("--max-old-space-size")
 
@@ -164,17 +200,25 @@ def test_token_aware_chunker_max_token_bound():
             assert tok_count <= 240
 
 @pytest.mark.asyncio
-async def test_invalid_tool_selection_error_not_fallback():
-    """Verify mcp_executor_node records explicit error when tool is invalid/missing instead of falling back to search_code."""
+async def test_invoke_tools_node_records_error_when_no_tool_resolved():
+    """
+    Tool-name validation against the live manifest now happens entirely in
+    the planner (see test_planner_rejects_tool_not_in_live_manifest) — by the
+    time state reaches invoke_tools_node, `selected_tool` is already either
+    a real tool or None. This verifies the execution-layer guarantee: when
+    needs_retrieval is true but no tool was resolved, the node makes no call
+    at all (never falls back to guessing a tool name) and surfaces an error.
+    """
     state_invalid: V2AgentState = {
         "conversation_id": "test_inv",
         "query": "test query",
         "rewritten_query": None,
         "history": [],
-        "intent": "exact_term",
-        "needs_retrieval": False,
-        "needs_tools": True,
-        "selected_tool": "unauthorized_tool_xyz",
+        "intent": "single_lookup",
+        "retrieval_strategy": "point_lookup",
+        "needs_retrieval": True,
+        "needs_tools": False,
+        "selected_tool": None,
         "tool_args": {},
         "sub_questions": ["test query"],
         "filters": None,
@@ -193,11 +237,10 @@ async def test_invalid_tool_selection_error_not_fallback():
         "stream_handler": None
     }
 
-    with patch("app.agents.graph.mcp_client.call_tool_async") as mock_call:
-        res = await mcp_executor_node(state_invalid)
+    with patch("app.agents.retriever.mcp_client.call_tool_async") as mock_call:
+        res = await invoke_tools_node(state_invalid)
         mock_call.assert_not_called()
         assert res.get("error") is not None
-        assert "not allowlisted" in res["error"]
         assert len(res["evidence"]) == 0
 
 @pytest.mark.asyncio

@@ -23,9 +23,16 @@ def test_comparison_intent_decomposition():
     assert len(plan.sub_questions) >= 2
 
 def test_exact_term_flag_preservation():
+    """
+    "exact_term" is no longer a distinct `intent` value -- lexical-specificity
+    handling moved to the retrieval-fusion layer (app.retrieval.query_analysis),
+    computed from the corpus's own BM25 statistics instead of a planner fast-path
+    hardcoded to this demo's vocabulary (kubectl/docker). What must still hold is
+    that the CLI flag text survives verbatim into the sub-question sent to retrieval.
+    """
     query = "What does the --memory flag do in PostgreSQL configuration?"
     plan = PlannerAgent.plan(query)
-    assert plan.intent == "exact_term"
+    assert plan.intent in ("single_lookup", "multi_hop", "comparison")
     assert "--memory" in plan.sub_questions[0]
 
 def test_followup_contextualization_and_conversation_isolation():

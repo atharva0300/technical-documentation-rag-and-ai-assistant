@@ -28,10 +28,12 @@ def test_planner_bare_and_uses_llm_fallback():
 
 def test_planner_unambiguous_comparison_fast_path():
     """
-    Test that unambiguous comparison queries (with 'vs' or 'compare') still use the fast path.
+    Test that unambiguous comparison queries (with 'vs' or 'compare') are
+    classified via the semantic router (embedding similarity to example
+    comparison utterances), not a keyword/regex fast path.
     """
     query = "Compare Kubernetes vs Docker Swarm"
     plan = PlannerAgent.plan(query)
     assert plan.intent == "comparison"
     assert len(plan.sub_questions) == 2
-    assert "unambiguous comparison" in plan.reasoning.lower()
+    assert "router matched 'comparison'" in plan.reasoning.lower()
