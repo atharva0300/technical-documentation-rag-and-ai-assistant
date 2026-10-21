@@ -7,7 +7,7 @@ from app.agents.planner import PlannerAgent
 from app.agents.retriever import RetrievalAgent
 from app.agents.analysis import EvidenceMerger
 from app.agents.answerer import AnswererAgent
-from app.agents.verifier import VerifierAgent
+from app.agents.verifier import VerifierAgent, UNGROUNDED_REFUSAL
 from app.agents.memory import MemoryLoader
 from app.mcp.client import mcp_client
 from app.core.llm_gateway import llm_gateway
@@ -490,12 +490,23 @@ async def run_v2_agent_workflow_async(
     llm_gateway.reset_call_count()
 
     final_state = await v2_supervisor_graph.ainvoke(initial_state)
+
+    answer = final_state.get("answer_draft", "")
+    verification_status = final_state.get("verification_status", "VALID")
+    verification_feedback = final_state.get("verification_feedback")
+    # The graph can stop while the verifier still wants a retry (step ceiling, or the LLM
+    # call budget ran out). That draft was never verified, so refuse instead of returning it.
+    if verification_status == "RETRY":
+        answer = UNGROUNDED_REFUSAL
+        verification_status = "REFUSE"
+        verification_feedback = f"Stopped before the answer could be verified ({verification_feedback})"
+
     return {
-        "answer": final_state.get("answer_draft", ""),
+        "answer": answer,
         "sources": final_state.get("citations", []),
         "intent": final_state.get("intent", "single_lookup"),
-        "verification_status": final_state.get("verification_status", "VALID"),
-        "verification_feedback": final_state.get("verification_feedback"),
+        "verification_status": verification_status,
+        "verification_feedback": verification_feedback,
         "trace_events": final_state.get("trace_events", []),
         "step_count": final_state.get("step_count", 0),
         "llm_call_count": llm_gateway.llm_call_count,

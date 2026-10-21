@@ -177,8 +177,9 @@ async def api_v2_agent_stream(request: AgentQueryRequest, db: Session = Depends(
             db.commit()
 
             # If a retry happened, the token events above only carried the FIRST (rejected)
-            # attempt. Replace them with the final, verified answer in one shot.
-            if res.get("retry_count", 0) > 0:
+            # attempt; on a refusal they carried an answer that was rejected outright. Replace
+            # them with the final answer in one shot.
+            if res.get("retry_count", 0) > 0 or res.get("verification_status") == "REFUSE":
                 yield f"event: answer_replaced\ndata: {json.dumps({'answer': res.get('answer', ''), 'sources': res.get('sources', [])})}\n\n"
 
             yield f"event: planner\ndata: {json.dumps({'intent': res.get('intent', 'single_lookup')})}\n\n"

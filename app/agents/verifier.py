@@ -4,6 +4,13 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Returned instead of an answer that still can't be tied to any cited evidence once
+# retries are exhausted -- an uncited answer at that point is most likely made up.
+UNGROUNDED_REFUSAL = (
+    "I could not find enough relevant information in the technical documentation "
+    "to answer your request."
+)
+
 _nli_model = None
 
 
@@ -159,6 +166,17 @@ class VerifierAgent:
                     retry_reason="citation_format"
                 )
 
+        # Out of retries and still not a single valid citation: nothing in the answer can be
+        # tied to the evidence it was supposed to come from, so refuse rather than pass it
+        # through unverified.
+        if not any(1 <= idx <= max_evidence_idx for idx in cited_indices):
+            return VerificationResult(
+                status="REFUSE",
+                cleaned_answer=UNGROUNDED_REFUSAL,
+                unsupported_sentences=[],
+                feedback="No valid citations after exhausting retries; refusing an ungrounded answer."
+            )
+
         # Layer 2 & 3: per-citation technical token grounding + NLI entailment
         sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', answer) if s.strip()]
         valid_sentences = []
@@ -214,6 +232,23 @@ class VerifierAgent:
                 cleaned_text = cleaned_text.replace(sentence, "", 1)
             cleaned_text = re.sub(r'[ \t]+\n', '\n', cleaned_text)
             cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text).strip()
+            # If trimming removed every cited sentence, what's left is uncited filler --
+            # treat it the same as an answer with no citations.
+            if not re.search(r'\[\d+\]', cleaned_text):
+                if retry_count < max_retries:
+                    return VerificationResult(
+                        status="RETRY",
+                        cleaned_answer=answer,
+                        unsupported_sentences=unsupported_sentences,
+                        feedback=f"Every cited claim failed grounding: {unsupported_sentences[:2]}",
+                        retry_reason="ungrounded_content"
+                    )
+                return VerificationResult(
+                    status="REFUSE",
+                    cleaned_answer=UNGROUNDED_REFUSAL,
+                    unsupported_sentences=unsupported_sentences,
+                    feedback="No grounded cited claims remained after exhausting retries."
+                )
             return VerificationResult(
                 status="PARTIAL",
                 cleaned_answer=cleaned_text,

@@ -84,3 +84,69 @@ def test_verifier_retry_budget_exhaustion_refuses():
 def test_unanswerable_query_workflow():
     res = run_v2_agent_workflow("What is quantum teleportation protocol in Postgres 99?", conversation_id="test_unans")
     assert res["verification_status"] in ("VALID", "PARTIAL", "REFUSE")
+
+
+def test_verifier_refuses_uncited_answer_after_retries_exhausted():
+    from app.agents.verifier import UNGROUNDED_REFUSAL
+    res = VerifierAgent.verify(
+        answer="Create a DataBinder bean and call addValidators() on it.",
+        evidence=[{"content": "DataBinder binds request parameters to a target object."}],
+        retry_count=2,  # Retries exhausted
+        max_retries=2
+    )
+    assert res.status == "REFUSE"
+    assert res.cleaned_answer == UNGROUNDED_REFUSAL
+
+
+def test_verifier_retries_uncited_answer_while_retries_remain():
+    res = VerifierAgent.verify(
+        answer="Create a DataBinder bean and call addValidators() on it.",
+        evidence=[{"content": "DataBinder binds request parameters to a target object."}],
+        retry_count=0,
+        max_retries=2
+    )
+    assert res.status == "RETRY"
+    assert res.retry_reason == "citation_format"
+
+
+def test_verifier_refuses_out_of_range_citations_after_retries_exhausted():
+    res = VerifierAgent.verify(
+        answer="HNSW uses iterative scanning [99].",
+        evidence=[{"content": "HNSW index docs"}],
+        retry_count=2,
+        max_retries=2
+    )
+    assert res.status == "REFUSE"
+
+
+def test_verifier_keeps_partial_answer_with_grounded_citation_after_retries_exhausted():
+    res = VerifierAgent.verify(
+        answer="The pgvector HNSW index speeds up search [1]. Set --fake-unsupported-flag=1 [1].",
+        evidence=[{"content": "The pgvector HNSW index speeds up approximate nearest neighbour search."}],
+        retry_count=2,
+        max_retries=2
+    )
+    assert res.status == "PARTIAL"
+    assert "[1]" in res.cleaned_answer
+    assert "--fake-unsupported-flag" not in res.cleaned_answer
+
+
+def test_workflow_refuses_when_graph_stops_before_verification(monkeypatch):
+    """If the graph ends while the verifier still wants a retry (step ceiling or LLM-call
+    budget hit), the unverified draft must not be returned as the answer."""
+    from app.agents import graph
+    from app.agents.verifier import UNGROUNDED_REFUSAL
+
+    async def fake_ainvoke(state):
+        return {
+            **state,
+            "answer_draft": "Invented, uncited DataBinder configuration.",
+            "verification_status": "RETRY",
+            "verification_feedback": "Answer missing bracketed citation tags [n].",
+            "retry_count": 1,
+        }
+
+    monkeypatch.setattr(graph.v2_supervisor_graph, "ainvoke", fake_ainvoke)
+    res = run_v2_agent_workflow("how to configure a databinder ?", conversation_id="test_stop_before_verify")
+    assert res["verification_status"] == "REFUSE"
+    assert res["answer"] == UNGROUNDED_REFUSAL
