@@ -99,6 +99,40 @@ class LLMGateway:
             logger.warning(f"Ollama streaming failed: {e}")
             raise OllamaUnavailableError(f"Ollama streaming error: {e}") from e
 
+    async def agenerate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        """Async single-turn generation (doesn't block the event loop), with optional sampling
+        options such as temperature, seed or num_predict."""
+        current_calls = _llm_call_count_var.get()
+        if current_calls >= settings.MAX_LLM_CALLS:
+            raise LLMBudgetExhaustedError(
+                f"LLM Call Budget Exhausted: {current_calls} calls made (Max limit: {settings.MAX_LLM_CALLS})"
+            )
+
+        _llm_call_count_var.set(current_calls + 1)
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        try:
+            response = await self.async_client.chat(
+                model=model or self.default_model,
+                messages=messages,
+                options={"num_ctx": self.num_ctx, **(options or {})},
+            )
+        except Exception as e:
+            logger.warning(f"Ollama generation failed: {e}")
+            raise OllamaUnavailableError(f"Ollama service error: {e}") from e
+        content = (response.get("message", {}) or {}).get("content", "").strip()
+        if not content:
+            raise OllamaUnavailableError("Empty response returned from model")
+        return content
+
     async def achat_with_tools(
         self,
         messages: List[Dict[str, Any]],

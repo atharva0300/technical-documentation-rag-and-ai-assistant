@@ -7,7 +7,7 @@ from app.agents.planner import PlannerAgent
 from app.agents.analysis import EvidenceMerger
 from app.agents.answerer import AnswererAgent
 from app.agents.verifier import VerifierAgent, UNGROUNDED_REFUSAL
-from app.agents.memory import MemoryLoader
+from app.agents.memory import MemoryLoader, QueryContextualizer
 from app.agents.tool_agent import ToolCallingAgent
 from app.mcp.client import mcp_client
 from app.core.llm_gateway import llm_gateway
@@ -21,7 +21,15 @@ async def load_memory_node(state: V2AgentState) -> Dict[str, Any]:
         history = MemoryLoader.load_history(state["conversation_id"])
 
     original_query = state["query"]
-    rewritten = MemoryLoader.rewrite_query(original_query, history)
+    # The streaming endpoint saves the user's message before running the graph, so the
+    # loaded history can already end with this very question. It isn't earlier context.
+    if history and history[-1].get("role") == "user" and history[-1].get("content", "").strip() == original_query.strip():
+        history = history[:-1]
+
+    # Resolve references to earlier turns once, up front: the standalone question is what
+    # routing, the tool-calling agent and the answerer all work from.
+    contextualized = await QueryContextualizer.contextualize(original_query, history)
+    rewritten = contextualized.text
 
     # Opportunistically refresh the live MCP tool manifest (cheap: no-ops if
     # still within TOOL_MANIFEST_TTL_SECONDS of the last fetch). This is what
@@ -39,7 +47,8 @@ async def load_memory_node(state: V2AgentState) -> Dict[str, Any]:
         "step_count": state.get("step_count", 0) + 1,
         "llm_call_count": llm_gateway.llm_call_count,
         "tool_call_count": mcp_client.total_tool_calls,
-        "trace_events": [{"node": "memory_loader", "status": "ok", "rewritten": rewritten}]
+        "trace_events": [{"node": "memory_loader", "status": "ok", "rewritten": rewritten,
+                          "method": contextualized.method, "detail": contextualized.detail}]
     }
 
 def plan_node(state: V2AgentState) -> Dict[str, Any]:

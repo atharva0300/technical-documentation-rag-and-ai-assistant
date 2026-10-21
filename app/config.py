@@ -56,9 +56,9 @@ class Settings(BaseSettings):
 
     # Agent Execution Budgets
     MAX_AGENT_STEPS: int = int(os.getenv("MAX_AGENT_STEPS", "15"))
-    # The tool-calling retrieval loop (app/agents/tool_agent.py) uses up to
-    # AGENT_MAX_TOOL_ROUNDS calls on top of answer generation and verifier retries.
-    MAX_LLM_CALLS: int = int(os.getenv("MAX_LLM_CALLS", "8"))
+    # Per request: one call to make a follow-up standalone (only when there's history), up
+    # to AGENT_MAX_TOOL_ROUNDS for the tool-calling loop, answer generation, and retries.
+    MAX_LLM_CALLS: int = int(os.getenv("MAX_LLM_CALLS", "9"))
     MAX_SUB_QUESTIONS: int = 3
     MAX_RETRIES: int = 2
     MAX_TOOL_CALLS: int = 5
