@@ -20,6 +20,7 @@ Deterministic guardrails around the model's decisions:
     router confidently classified as needing documentation, one plain search with
     the question is run instead, so the user isn't left with nothing.
 """
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
@@ -211,24 +212,44 @@ class ToolCallingAgent:
                 "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls],
             })
 
+            # Validate every call first, then run the valid ones concurrently: calls in one
+            # round don't depend on each other. Tool messages are appended in call order.
+            planned = []
             for call in calls:
                 arguments, error = _validate_call(call, manifest_by_name)
+                planned.append((call, arguments, error))
+
+            # The per-request tool budget lives in a context variable, and tasks started by
+            # gather work on copies of it, so reserve the budget here and record usage after.
+            used_before = mcp_client.total_tool_calls
+            remaining = max(0, settings.MAX_TOOL_CALLS - used_before)
+            runnable = [i for i, (_, _, error) in enumerate(planned) if error is None][:remaining]
+
+            async def _run(call, arguments):
+                try:
+                    return await mcp_client.call_tool_async(call["name"], arguments)
+                except CircuitBreakerOpenException as e:
+                    return {"status": "circuit_open", "error": f"Tool unavailable: {e}"}
+
+            responses = dict(zip(runnable, await asyncio.gather(
+                *(_run(planned[i][0], planned[i][1]) for i in runnable)
+            )))
+            mcp_client.total_tool_calls = used_before + len(runnable)
+
+            for i, (call, arguments, error) in enumerate(planned):
+                if error is None and i not in responses:
+                    error = f"Tool-call budget exhausted ({settings.MAX_TOOL_CALLS} per question); work with the results you have."
                 if error:
                     result.trace.append({"event": "invalid_call", "round": round_no, "tool": call.get("name"),
                                          "arguments": call.get("arguments"), "error": error})
                     messages.append({"role": "tool", "tool_name": call.get("name") or "unknown", "content": error})
                     continue
 
-                try:
-                    response = await mcp_client.call_tool_async(call["name"], arguments)
-                except CircuitBreakerOpenException as e:
-                    result.trace.append({"event": "circuit_open", "round": round_no, "tool": call["name"]})
-                    messages.append({"role": "tool", "tool_name": call["name"], "content": f"Tool unavailable: {e}"})
-                    continue
-
+                response = responses[i]
                 if response.get("status") != "success":
                     error = response.get("error", "Tool call failed.")
-                    result.trace.append({"event": "tool_error", "round": round_no, "tool": call["name"],
+                    event = "circuit_open" if response.get("status") == "circuit_open" else "tool_error"
+                    result.trace.append({"event": event, "round": round_no, "tool": call["name"],
                                          "arguments": arguments, "error": error})
                     messages.append({"role": "tool", "tool_name": call["name"], "content": error})
                     continue

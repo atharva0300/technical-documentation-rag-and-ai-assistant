@@ -291,3 +291,49 @@ async def test_navigation_only_results_get_a_plain_search_added(monkeypatch, fal
     assert result.fallback_reason == "Tool calls returned no passages from the documents."
     assert result.evidence[0]["chunk_id"] == "inventory"
     assert result.evidence[1:] == _passages("fallback")
+
+
+@pytest.mark.asyncio
+async def test_calls_in_one_round_run_concurrently(monkeypatch, fallback):
+    import asyncio
+    import time
+    monkeypatch.setattr(tool_agent.mcp_client, "list_tools_async", AsyncMock(return_value=[SEARCH_TOOL]))
+
+    async def slow_call(name, arguments):
+        await asyncio.sleep(0.3)
+        return {"status": "success", "result": json.dumps(_passages(arguments["query"]))}
+
+    monkeypatch.setattr(tool_agent.mcp_client, "call_tool_async", slow_call)
+    monkeypatch.setattr(tool_agent.llm_gateway, "achat_with_tools", ScriptedModel([
+        {"content": "", "tool_calls": [_call("search_documentation", query="BeanFactory"),
+                                       _call("search_documentation", query="MessageSource")]},
+        {"content": "Done.", "tool_calls": []},
+    ]))
+    tool_agent.mcp_client.reset_tool_call_count()
+
+    started = time.monotonic()
+    result = await ToolCallingAgent.gather_evidence("BeanFactory vs MessageSource", retrieval_expected=True)
+
+    assert time.monotonic() - started < 0.55  # two 0.3s calls overlapped
+    assert [s["arguments"]["query"] for s in result.trace if s["event"] == "tool_call"] == ["BeanFactory", "MessageSource"]
+    assert tool_agent.mcp_client.total_tool_calls == 2
+    tool_agent.mcp_client.reset_tool_call_count()
+
+
+@pytest.mark.asyncio
+async def test_tool_budget_holds_across_concurrent_calls(monkeypatch, fake_mcp, fallback):
+    tool_agent.mcp_client.reset_tool_call_count()
+    tool_agent.mcp_client.total_tool_calls = settings.MAX_TOOL_CALLS - 1
+    model = ScriptedModel([
+        {"content": "", "tool_calls": [_call("search_documentation", query="first"),
+                                       _call("search_documentation", query="second")]},
+        {"content": "Done.", "tool_calls": []},
+    ])
+    monkeypatch.setattr(tool_agent.llm_gateway, "achat_with_tools", model)
+
+    await ToolCallingAgent.gather_evidence("anything", retrieval_expected=True)
+
+    assert [args["query"] for _, args in fake_mcp] == ["first"]
+    assert tool_agent.mcp_client.total_tool_calls == settings.MAX_TOOL_CALLS
+    assert "budget exhausted" in model.calls[1]["messages"][-1]["content"]
+    tool_agent.mcp_client.reset_tool_call_count()
