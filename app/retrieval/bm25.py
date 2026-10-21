@@ -1,4 +1,5 @@
 import re
+import json
 import logging
 import hashlib
 from typing import List, Dict, Any, Optional
@@ -77,6 +78,10 @@ def get_bm25_index(db: Session):
     chunks = []
     tokenized_corpus = []
     for chunk, doc_title, doc_source, doc_id, doc_updated_at in results:
+        try:
+            meta = json.loads(chunk.metadata_json) if chunk.metadata_json else {}
+        except (ValueError, TypeError):
+            meta = {}
         chunks.append({
             "chunk_id": chunk.id,
             "document_id": doc_id,
@@ -84,7 +89,9 @@ def get_bm25_index(db: Session):
             "source": doc_source,
             "section": chunk.section,
             "content": chunk.content,
-            "updated_at": doc_updated_at
+            "updated_at": doc_updated_at,
+            "has_code": bool(meta.get("has_code")),
+            "code_languages": meta.get("code_languages") or [],
         })
         tokenized_corpus.append(_tokenize(chunk.content))
 
@@ -125,6 +132,10 @@ def search_bm25(
             if "source" in filters and filters["source"] and chunk_info["source"] != filters["source"]:
                 continue
             if "document_id" in filters and filters["document_id"] and chunk_info["document_id"] != filters["document_id"]:
+                continue
+            if filters.get("has_code") and not chunk_info.get("has_code"):
+                continue
+            if filters.get("language") and filters["language"].lower() not in chunk_info.get("code_languages", []):
                 continue
             if "section" in filters and filters["section"] and (not chunk_info["section"] or filters["section"].lower() not in chunk_info["section"].lower()):
                 continue

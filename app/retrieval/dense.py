@@ -1,7 +1,8 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, cast
+from sqlalchemy.dialects.postgresql import JSONB
 from app.database.models import Chunk, Document
 from app.embeddings.model import generate_embedding
 
@@ -28,6 +29,10 @@ def search_dense(
             stmt = stmt.where(Document.source == filters["source"])
         if "document_id" in filters and filters["document_id"]:
             stmt = stmt.where(Document.document_id == filters["document_id"])
+        if filters.get("has_code"):
+            stmt = stmt.where(cast(Chunk.metadata_json, JSONB)["has_code"].as_boolean().is_(True))
+        if filters.get("language"):
+            stmt = stmt.where(cast(Chunk.metadata_json, JSONB)["code_languages"].contains([filters["language"].lower()]))
         if "section" in filters and filters["section"]:
             stmt = stmt.where(Chunk.section.ilike(f"%{filters['section']}%"))
         if "updated_after" in filters and filters["updated_after"]:

@@ -21,8 +21,10 @@ def generate_document_id(source: str, content: str) -> str:
 
 # Numbered section heading on its own line, as PDF text extraction emits them, e.g.
 # "7.14 Registering a LoadTimeWeaver" or "9.5.2 Formatter SPI". Requires at least two
-# number levels so numbered list steps ("1. Create a bean") aren't mistaken for headings.
-_PDF_HEADING_REGEX = re.compile(r'^(\d{1,2}(?:\.\d{1,3}){1,3})\.?\s+([A-Z@][^\n]{2,90})$')
+# number levels so numbered list steps ("1. Create a bean") aren't mistaken for headings,
+# and no dot after the number: "7.14. Registering ..." is a table-of-contents entry and
+# "2.5. Specifically, a SmartContextLoader ..." is a sentence that wrapped after a version.
+_PDF_HEADING_REGEX = re.compile(r'^(\d{1,2}(?:\.\d{1,3}){1,3})\s+([A-Z@][^\n]{2,90})$')
 
 
 def _is_pdf_heading(line: str) -> bool:

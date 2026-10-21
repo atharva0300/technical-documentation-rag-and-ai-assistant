@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from app.config import settings
 from app.embeddings.model import EMBEDDING_MODEL_NAME
+from app.ingestion.code_detection import detect_code
 
 logger = logging.getLogger(__name__)
 
@@ -134,12 +135,14 @@ class TokenAwareChunker:
             if line_section != states[0][0]:
                 section = line_section
                 break
+        has_code, code_languages = detect_code(chunk_content)
         chunks.append({
             "content": chunk_content,
             "section": _section_label(section, page),
             "page": page,
             "token_count": self._estimate_tokens(chunk_content),
-            "has_code": "```" in chunk_content or "~~~" in chunk_content
+            "has_code": has_code,
+            "code_languages": code_languages,
         })
 
 
