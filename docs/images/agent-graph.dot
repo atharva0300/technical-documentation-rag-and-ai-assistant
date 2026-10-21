@@ -27,7 +27,10 @@ digraph AgentGraph {
     label="MCP server :8765 (mcp_server/server.py) — 8 tools"; style="rounded,filled"; fillcolor="#F0FDF4"; color="#15803D"; fontcolor="#166534"; fontsize=11;
     t_search [label="search_documentation\nsearch_code_examples", fillcolor="#DCFCE7", color="#15803D"];
     t_nav [label="get_section · expand_passage\nlist_documents · get_table_of_contents", fillcolor="#DCFCE7", color="#15803D"];
-    t_graph [label="find_related · survey_topic\n(GraphRAG-lite)", fillcolor="#DCFCE7", color="#15803D"];
+    subgraph cluster_graphrag {
+      label="GraphRAG-lite (graph built offline by POST /documents/graph/rebuild — see system-architecture.png)"; style="rounded,filled"; fillcolor="#FFF7ED"; color="#C2410C"; fontcolor="#9A3412"; fontsize=10;
+      t_graph [label="find_related(entity)\nanchor chunks → BFS over shared-entity graph\n→ fused into RRF → rerank\n\nsurvey_topic(topic)\nmost relevant community summaries", fillcolor="#FFEDD5", color="#C2410C"];
+    }
     pg [label="PostgreSQL + pgvector\ndense + BM25 → RRF → cross-encoder", shape=cylinder, fillcolor="#FFFFFF", color="#15803D"];
     t_search -> pg; t_nav -> pg; t_graph -> pg;
   }
@@ -43,7 +46,7 @@ digraph AgentGraph {
   plan_node -> llm_turn [label="everything else"];
   exec -> t_search [dir=both, color="#15803D", style=dotted];
   exec -> t_nav [dir=both, color="#15803D", style=dotted];
-  exec -> t_graph [dir=both, color="#15803D", style=dotted];
+  exec -> t_graph [dir=both, color="#C2410C", style=dotted];
   llm_turn -> evidence_merger_node [label="done: evidence"];
   fallback -> evidence_merger_node;
   evidence_merger_node -> answer_node;

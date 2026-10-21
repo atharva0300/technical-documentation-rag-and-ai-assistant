@@ -1,0 +1,94 @@
+digraph SystemArchitecture {
+  graph [rankdir=LR, fontname="Helvetica", fontsize=13, bgcolor="white", pad=0.4, nodesep=0.35, ranksep=0.55, compound=true,
+         label="Engineering AI Assistant — system architecture (ingestion, GraphRAG indexing, query time)", labelloc=t, fontcolor="#111827"];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10.5, color="#374151", fillcolor="#F3F4F6", penwidth=1.1, margin="0.15,0.07"];
+  edge  [fontname="Helvetica", fontsize=9, color="#4B5563", fontcolor="#374151", arrowsize=0.7];
+
+  // ---------------- Clients ----------------
+  subgraph cluster_client {
+    label="frontend service (engineering-ai-frontend) :3000 — dev: Vite :5173"; style="rounded"; color="#9CA3AF"; fontcolor="#374151"; fontsize=11;
+    browser [label="Browser — Vite + React 19 SPA\nchat (Markdown answers, [n] citation chips),\nsource drawer, document upload", fillcolor="#FFFFFF"];
+    proxy [label="Express proxy (frontend/server)\nadds API key server-side\n/api/proxy/* → API", fillcolor="#FFFFFF"];
+    browser -> proxy [label="HTTP / SSE"];
+  }
+
+  // ---------------- API ----------------
+  subgraph cluster_api {
+    label="api service (engineering-ai-api) — FastAPI :8000"; style="rounded,filled"; fillcolor="#EFF6FF"; color="#1D4ED8"; fontcolor="#1E3A8A"; fontsize=11;
+    routes [label="/api/v2 routes\nagent/query · agent/stream (SSE)\ndocuments/upload · documents/sync\ndocuments/graph/rebuild", fillcolor="#DBEAFE", color="#1D4ED8"];
+
+    subgraph cluster_graph {
+      label="LangGraph supervisor (see agent-graph.png)"; style="rounded,dashed"; color="#1D4ED8"; fontcolor="#1E3A8A"; fontsize=10;
+      memory [label="memory +\nfollow-up contextualizer", fillcolor="#DBEAFE", color="#1D4ED8"];
+      router [label="semantic router\n(fast path)", fillcolor="#DBEAFE", color="#1D4ED8"];
+      agent [label="tool-calling agent loop\n(model picks MCP tools + args)", fillcolor="#EDE9FE", color="#7C3AED"];
+      answer [label="evidence merger → answerer\n→ verifier (tokens + NLI)", fillcolor="#DBEAFE", color="#1D4ED8"];
+      memory -> router -> agent -> answer;
+    }
+
+    subgraph cluster_ingest {
+      label="Ingestion — app/ingestion/ (per document, on upload)"; style="rounded,dashed"; color="#0369A1"; fontcolor="#075985"; fontsize=10;
+      loader [label="loader\nPDF → text per page,\nnumbered headings → sections", fillcolor="#E0F2FE", color="#0369A1"];
+      cleaner [label="cleaner\ndrop table-of-contents lines", fillcolor="#E0F2FE", color="#0369A1"];
+      chunker [label="token-aware chunker\nsection · page labels\n+ code detection (Java/XML)", fillcolor="#E0F2FE", color="#0369A1"];
+      embed [label="batched embeddings\nbge-base-en-v1.5 (768-d)", fillcolor="#E0F2FE", color="#0369A1"];
+      loader -> cleaner -> chunker -> embed;
+    }
+
+    subgraph cluster_graphrag_index {
+      label="GraphRAG-lite indexing — app/graph/community_builder.py\ncorpus-wide batch: POST /documents/graph/rebuild (or /documents/sync)\nnot yet run on the current corpus: community_summaries is empty"; style="rounded,filled"; fillcolor="#FFF7ED"; color="#C2410C"; fontcolor="#9A3412"; fontsize=10;
+      gx_entities [label="1. entity extraction per chunk\ntechnical tokens + capitalized phrases\n(no LLM; cached in chunks.entities_json)", fillcolor="#FFEDD5", color="#C2410C"];
+      gx_graph [label="2. chunk graph (networkx)\nnode = chunk, edge weight = shared entities", fillcolor="#FFEDD5", color="#C2410C"];
+      gx_louvain [label="3. Louvain community detection\n→ chunks.community_id", fillcolor="#FFEDD5", color="#C2410C"];
+      gx_summary [label="4. one summary per community\n(LLM, deterministic fallback)", fillcolor="#FFEDD5", color="#C2410C"];
+      gx_entities -> gx_graph -> gx_louvain -> gx_summary;
+    }
+
+    models_api [label="local models\nbge-base (embeddings, router)\nnli-deberta-v3-small (verifier)", shape=note, fillcolor="#FFFFFF"];
+  }
+
+  // ---------------- MCP ----------------
+  subgraph cluster_mcp {
+    label="mcp-server service (engineering-mcp-server) :8765 — MCP Streamable HTTP, bearer auth"; style="rounded,filled"; fillcolor="#F0FDF4"; color="#15803D"; fontcolor="#166534"; fontsize=11;
+    t_search [label="search_documentation\nsearch_code_examples", fillcolor="#DCFCE7", color="#15803D"];
+    t_nav [label="get_section · expand_passage\nlist_documents · get_table_of_contents", fillcolor="#DCFCE7", color="#15803D"];
+    hybrid [label="hybrid retrieval\ndense (pgvector HNSW) + BM25\n→ weighted RRF → cross-encoder rerank\n(ms-marco-MiniLM-L-6-v2)", fillcolor="#FFFFFF", color="#15803D"];
+
+    subgraph cluster_graphrag_query {
+      label="GraphRAG-lite at query time (mcp_server/tools/graph_tools.py)"; style="rounded,filled"; fillcolor="#FFF7ED"; color="#C2410C"; fontcolor="#9A3412"; fontsize=10;
+      t_related [label="find_related(entity)\nquery entities → anchor chunks →\nBFS ≤ 2 hops over shared-entity graph\n→ fused into RRF as a 3rd ranked list → rerank", fillcolor="#FFEDD5", color="#C2410C"];
+      t_survey [label="survey_topic(topic)\nrank community summaries by\nembedding similarity → top N as passages\n(no LLM call inside the tool)", fillcolor="#FFEDD5", color="#C2410C"];
+    }
+    t_search -> hybrid;
+    t_related -> hybrid [label="dense + BM25 candidates", style=dashed];
+  }
+
+  // ---------------- Infra ----------------
+  pg [label="postgres service (rag-postgres) :5444 → 5432\nPostgreSQL 16 + pgvector\n• documents\n• chunks: embedding vector(768), section, page,\n   metadata (has_code, code_languages),\n   entities_json, community_id\n• community_summaries\n• conversations · messages", shape=cylinder, fillcolor="#FFFFFF", color="#111827", margin="0.2,0.12"];
+  ollama [label="Ollama on the host :11434\nqwen2.5:3b (Q4_K_M, CPU)\nreached via host.docker.internal", shape=component, fillcolor="#FEF9C3", color="#A16207"];
+
+  // ---------------- Flows ----------------
+  proxy -> routes [label="X-API-Key"];
+  routes -> memory [label="question", lhead=cluster_graph];
+  routes -> loader [label="upload", lhead=cluster_ingest];
+  routes -> gx_entities [label="graph/rebuild", lhead=cluster_graphrag_index];
+
+  embed -> pg [label="chunks + vectors"];
+  gx_entities -> pg [label="entities_json", style=dashed];
+  gx_louvain -> pg [label="community_id", style=dashed];
+  gx_summary -> pg [label="community_summaries"];
+  pg -> gx_entities [label="all chunks", style=dotted];
+
+  agent -> t_search [label="native tool calls (MCP)", lhead=cluster_mcp, color="#15803D", fontcolor="#166534"];
+  hybrid -> pg [label="vector + text", style=dashed];
+  t_nav -> pg [style=dashed];
+  t_related -> pg [label="entities_json\n(graph)", style=dashed, color="#C2410C", fontcolor="#9A3412"];
+  t_survey -> pg [label="community_summaries", style=dashed, color="#C2410C", fontcolor="#9A3412"];
+
+  memory -> ollama [label="rewrite follow-up", style=dashed, color="#A16207", fontcolor="#A16207"];
+  agent -> ollama [label="tool selection (temp 0)", style=dashed, color="#A16207", fontcolor="#A16207"];
+  answer -> ollama [label="answer text", style=dashed, color="#A16207", fontcolor="#A16207"];
+  gx_summary -> ollama [label="summaries", style=dashed, color="#A16207", fontcolor="#A16207"];
+  answer -> pg [label="conversation history", style=dotted];
+  answer -> proxy [label="answer + sources (SSE)", ltail=cluster_graph, color="#1D4ED8", fontcolor="#1D4ED8"];
+}

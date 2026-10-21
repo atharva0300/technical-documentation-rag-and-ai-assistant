@@ -22,8 +22,18 @@ lexically and via NLI entailment — before triggering a bounded retry on an ung
 
 The agent graph above is rendered from [`docs/images/agent-graph.dot`](docs/images/agent-graph.dot)
 (`dot -Tpng -Gdpi=160 docs/images/agent-graph.dot -o docs/images/agent-graph.png`); its nodes
-and edges follow the compiled LangGraph in `app/agents/graph.py`. The diagram below shows the
-same flow end to end, from the browser to the database.
+and edges follow the compiled LangGraph in `app/agents/graph.py`.
+
+![System architecture: frontend, api, mcp-server and postgres services with host Ollama; the ingestion pipeline; GraphRAG-lite indexing and its two query-time tools](docs/images/system-architecture.png)
+
+The system view above ([`docs/images/system-architecture.dot`](docs/images/system-architecture.dot))
+places the agent graph among the docker-compose services, and shows the two pipelines that run
+outside it: per-document ingestion on upload, and GraphRAG-lite indexing (orange), a corpus-wide
+batch triggered by `POST /api/v2/documents/graph/rebuild` that extracts entities, links chunks by
+shared entities, detects Louvain communities and summarizes them. At query time GraphRAG is two
+MCP tools the agent can choose: `find_related` (graph traversal fused into hybrid search) and
+`survey_topic` (the most relevant community summaries). The Mermaid diagram below shows the
+request flow end to end, from the browser to the database.
 
 ```mermaid
 graph TD

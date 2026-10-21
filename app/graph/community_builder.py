@@ -36,8 +36,8 @@ def rebuild_knowledge_graph(db: Session) -> Dict[str, Any]:
        `Chunk.community_id`.
     4. Generates one summary per community (LLM-assisted, with a
        deterministic fallback when the LLM is unavailable) into
-       `CommunitySummary`, which `app.graph.global_search` later maps/reduces
-       over for "exhaustive" queries.
+       `CommunitySummary`, which the `survey_topic` MCP tool ranks and returns
+       (see app/graph/global_search.py).
     """
     import networkx as nx
     from networkx.algorithms.community import louvain_communities
