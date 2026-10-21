@@ -143,3 +143,30 @@ graph LR
     Browser[Browser / Client] -->|GET / POST / DELETE| Proxy[Express Proxy /api/proxy/*]
     Proxy -->|x-api-key: secret| Backend[FastAPI Backend :8000]
 ```
+
+---
+
+## 3. MCP Tools
+
+The MCP server (`mcp_server/server.py`, Streamable HTTP at `:8765/mcp`, bearer auth with
+`MCP_API_KEY`) exposes these tools. Their input schemas and descriptions are what the
+tool-calling agent's model reads to decide which to call; any other MCP client can use them
+too. Tools that return passages return JSON with a `passages` list; each passage has
+`chunk_id`, `document_id`, `title`, `section` (e.g. `7.14 Registering a LoadTimeWeaver · p. 170`)
+and `content`.
+
+| Tool | Arguments | Returns |
+|------|-----------|---------|
+| `search_documentation` | `query` (required), `top_k` (3-8), `filters` (`document_id`, `source`, `section`, `updated_after`) | Hybrid dense + BM25 search, reranked; a list of passages. |
+| `search_code_examples` | `query` (required), `language` (`java` / `xml`), `top_k` | The same search restricted to passages containing code (detected at ingestion). |
+| `get_section` | `section` (required, `"<number> <title>"`), `document_id` | The full text of one section, from its heading to where the next one starts, even across chunks. |
+| `expand_passage` | `chunk_id` (required), `window` (0-5) | A passage with its neighbours in reading order. |
+| `list_documents` | — | Indexed documents (`document_id`, title, passage count, last update). |
+| `get_table_of_contents` | `document_id`, `under` (section number like `9`, or a word) | Section headings with page numbers, read from the document text. |
+| `find_related` | `entity` (required), `top_k` | GraphRAG-lite local search: passages connected to the entity in the co-occurrence graph, fused with ordinary search. |
+| `survey_topic` | `topic` (required), `max_communities` (1-8) | The most relevant community summaries (requires `POST /api/v2/documents/graph/rebuild` to have run). |
+
+`document_id` is optional for `get_section` and `get_table_of_contents` when one document is
+indexed; with several, an unknown id returns an error listing the valid ones. None of the
+tools call an LLM, so a call's cost is bounded by search and database work.
+

@@ -5,14 +5,14 @@ technical documentation, built with **LangGraph**, **Model Context Protocol (MCP
 **FastAPI**, **PostgreSQL (pgvector)**, a local **Ollama** LLM (Qwen2.5:3b), and a
 **Vite + React 19** UI.
 
-It classifies each query with an embedding-similarity semantic router (not a keyword list),
-selects an MCP tool dynamically from the server's live tool manifest, and routes retrieval
-down one of three strategies: plain hybrid search (dense + BM25 + RRF, cross-encoder
-reranked) for point lookups, or GraphRAG-lite local/global search for relational and
-corpus-wide "scattered across many pages" queries. The generated answer carries inline
-citations and is checked by a verifier that grounds each citation against its specific
-cited chunk — both lexically and via NLI entailment — before triggering a bounded retry on
-an ungrounded claim.
+Follow-up questions are first rewritten into standalone ones from the conversation. A cheap
+embedding-similarity router turns away greetings and off-topic requests; everything else
+goes to a bounded tool-calling loop in which the model itself chooses which MCP tools to
+call and with what arguments, via Ollama's native tool calling: hybrid search (dense + BM25
++ RRF, cross-encoder reranked), code-only search, whole sections, the table of contents, and
+GraphRAG-lite related/topic search. The generated answer carries inline citations and is
+checked by a verifier that grounds each citation against its specific cited chunk — both
+lexically and via NLI entailment — before triggering a bounded retry on an ungrounded claim.
 
 ---
 
@@ -24,38 +24,32 @@ graph TD
     Proxy -->|Authenticated REST / SSE| FastAPI[FastAPI Backend /api/v2]
 
     subgraph "LangGraph Supervisor Graph"
-        FastAPI --> MemoryLoader[Memory Loader Node<br/>warms live MCP tool manifest]
-        MemoryLoader --> Planner[Planner Agent:<br/>Semantic Router + LLM Fallback]
+        FastAPI --> MemoryLoader[Memory Loader Node:<br/>rewrites follow-ups into standalone questions]
+        MemoryLoader --> Planner[Planner:<br/>semantic router fast path]
 
-        Planner -->|retrieval_strategy| Route{Route by strategy}
-        Route -->|point_lookup| InvokeTools[Invoke Tools Node]
-        Route -->|relational| LocalSearch[Local Search:<br/>entity graph + vector fusion]
-        Route -->|exhaustive| GlobalSearch[Global Search:<br/>map-reduce over community summaries]
+        Planner -->|greeting / off-topic| Answerer
+        Planner -->|everything else| Agent[Tool-calling agent:<br/>model picks tools + arguments,<br/>sees results, decides next call]
 
-        InvokeTools -->|tool resolved from live manifest, not hardcoded| MCPClient[MCP Client]
+        Agent <-->|native tool calls, validated against MCP schemas| MCPClient[MCP Client]
         MCPClient -->|Streamable HTTP, bearer auth| MCPServer[MCP Server :8765]
 
-        subgraph "Hybrid Search Engine"
-            MCPServer -->|Vector Cosine| PGVector[(PostgreSQL / pgvector HNSW)]
-            MCPServer -->|Technical Token BM25| BM25[(BM25 Lexical Engine)]
-
-            PGVector --> RRF[Lexical-Specificity-Weighted RRF]
-            BM25 --> RRF
-            RRF --> Reranker[Cross-Encoder Reranker]
+        subgraph "MCP tools"
+            MCPServer --> Search[search_documentation /<br/>search_code_examples]
+            MCPServer --> Nav[get_section / expand_passage /<br/>list_documents / get_table_of_contents]
+            MCPServer --> Graph[find_related / survey_topic<br/>GraphRAG-lite]
+            Search -->|dense + BM25 + RRF + cross-encoder| PGVector[(PostgreSQL / pgvector)]
+            Nav --> PGVector
+            Graph --> PGVector
         end
 
-        LocalSearch -.->|falls back if no graph match| InvokeTools
-        GlobalSearch -.->|falls back if graph unbuilt/empty| InvokeTools
-
-        Reranker --> Merger[Evidence Merger Node]
-        LocalSearch --> Merger
-        GlobalSearch --> Merger
+        Agent --> Merger[Evidence Merger Node]
         Merger --> Answerer[Answerer Agent]
         Answerer --> Verifier[Verifier: citation syntax +<br/>per-citation token grounding +<br/>NLI entailment]
 
         Verifier -->|VALID / PARTIAL| Finish[Final Answer]
         Verifier -->|RETRY: citation format| Answerer
-        Verifier -->|RETRY: ungrounded content| Route
+        Verifier -->|RETRY: ungrounded content| Agent
+        Verifier -->|out of retries| Refuse[Refusal instead of an unverified draft]
     end
 
     Finish -->|SSE: live tokens on the first attempt,<br/>one answer_replaced event if retried| User
@@ -65,26 +59,34 @@ graph TD
 
 ## Key Technical Features
 
-- **LangGraph StateGraph Supervisor**: Memory Loader → Planner → one of three retrieval
-  nodes (by `retrieval_strategy`) → Evidence Merger → Answerer → Verifier, with hard step
-  (`MAX_AGENT_STEPS`), LLM-call, and tool-call budgets enforced per request.
-- **Semantic router, not a keyword list**: intent/retrieval-strategy classification
-  (`app/retrieval/semantic_router.py`) matches the query against example utterances per
-  category via embedding cosine similarity, generalizing across phrasing instead of
-  enumerating it — falls through to an LLM classification pass only below a confidence
-  threshold. The categories that skip retrieval (chitchat, out-of-scope) need a stricter
-  0.65 similarity (vs 0.45 for the retrieval strategies), calibrated for bge-base so a
-  real question like "what is spring?" is never answered with a canned greeting.
-- **Live, generic MCP tool selection**: the planner resolves which tool to call by
-  inspecting the MCP server's *live* `list_tools()` manifest (`app/mcp/client.py`), never a
-  hardcoded tool name. Adding, renaming, or removing a tool on the server needs no planner
-  change. A single `_invoke_selected_tool` helper is the only place any tool is actually
-  called, shared by all three retrieval strategies.
+- **LangGraph StateGraph Supervisor**: Memory Loader → Planner → tool-calling agent →
+  Evidence Merger → Answerer → Verifier, with hard step (`MAX_AGENT_STEPS`), LLM-call
+  (`MAX_LLM_CALLS`), and tool-call (`MAX_TOOL_CALLS`) budgets enforced per request.
+- **Model-driven tool calling** (`app/agents/tool_agent.py`): the live MCP manifest is
+  passed to Ollama as native function tools. The model emits `tool_calls` with its own
+  arguments (e.g. a reformulated query), sees each result as a `tool` message, and decides
+  whether to call again or stop, for up to `AGENT_MAX_TOOL_ROUNDS` rounds; calls in one
+  round run concurrently. Tool-selection turns run at temperature 0 with a fixed seed.
+  Guardrails: tool names are checked against the manifest, arguments against the tool's
+  MCP JSON schema (unknown arguments rejected with an error the model can act on), `top_k`
+  is clamped, and a plain search runs if the model is unavailable or gathers no passages
+  for a question the router confidently classed as needing the docs.
+- **Semantic router as a fast path**: `app/retrieval/semantic_router.py` matches the query
+  against example utterances per category via embedding cosine similarity, so greetings
+  and clearly off-topic requests are answered without any LLM call. It never selects
+  tools. The categories that skip retrieval (chitchat, out-of-scope) need 0.65 similarity,
+  calibrated for bge-base so a real question like "what is spring?" isn't answered with a
+  canned greeting.
+- **Follow-up contextualization** (`QueryContextualizer`, `app/agents/memory.py`): when
+  there is history, one LLM call rewrites the question as a standalone one ("give me an
+  example code for it" → "give me example code for Spring transaction management"), which
+  then drives routing, retrieval and the answer. Falls back to an embedding heuristic if
+  the model is unavailable.
 - **GraphRAG-lite** (`app/graph/`): entity extraction + Louvain community detection over the
-  corpus. "Relational" queries ("what depends on X") get entity-anchored graph traversal
-  fused into RRF as a third ranked source; "exhaustive" queries ("every place X is
-  mentioned") get map-reduce over pre-built community summaries — the actual fix for
-  answers scattered across many pages, which widening `top_k` cannot cover.
+  corpus, exposed as two MCP tools: `find_related` (entity-anchored graph traversal fused
+  into RRF) for "what depends on X", and `survey_topic` (the most relevant pre-built
+  community summaries) for answers scattered across many pages. Build the graph with
+  `POST /api/v2/documents/graph/rebuild`.
 - **Hybrid RAG Pipeline**: pgvector cosine ANN search (HNSW index) + BM25 lexical search
   with a technical tokenizer that preserves `--memory`-style flags, `v1.2.3` versions, and
   paths — fused with a lexical-specificity-weighted Reciprocal Rank Fusion (the query's own
@@ -106,12 +108,17 @@ graph TD
   grounding, then NLI entailment (`cross-encoder/nli-deberta-v3-small`) between the cited
   chunk and the sentence citing it — catches "right term, wrong claim" errors a lexical-only
   check misses. A citation-format failure regenerates from the *same* evidence; an
-  ungrounded-content failure re-retrieves via the same `retrieval_strategy`. Bounded by
-  `MAX_RETRIES`. Unsupported sentences are removed from the answer in place, keeping its
+  ungrounded-content failure goes back to the tool-calling agent with the verifier's
+  feedback. Bounded by `MAX_RETRIES`; a run that ends without a verified, cited answer
+  returns a refusal rather than the unverified draft. Unsupported sentences are removed from the answer in place, keeping its
   paragraphs, lists and code blocks intact.
-- **MCP tool-calling**: a standalone MCP server (Streamable HTTP, bearer-auth) currently
-  exposes one tool, `search_documentation` — but nothing in the client/planner path assumes
-  that; see "Live, generic MCP tool selection" above. The server runs one warm-up search at
+- **MCP server**: a standalone MCP server (Streamable HTTP, bearer-auth) exposes eight
+  tools with typed, described input schemas: `search_documentation`,
+  `search_code_examples`, `get_section`, `expand_passage`, `list_documents`,
+  `get_table_of_contents`, `find_related`, `survey_topic` (see
+  [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md#3-mcp-tools)). Any MCP client can use them,
+  not just this app. Code is detected at ingestion, including unfenced Java/XML in PDFs,
+  so code search works on PDF documentation. The server runs one warm-up search at
   startup (in the background) so the first real query doesn't pay the ~20s model-load and
   BM25-index cost and time out. `mcp` is pinned (`mcp==2.3.0`) because its client API
   changed shape between releases.
@@ -127,8 +134,6 @@ graph TD
   attempt's tokens live; if the verifier rejects it, the regenerated attempt is buffered
   server-side and delivered as one `answer_replaced` event instead of a second stream of
   tokens silently concatenating onto the first (rejected) one.
-- **Thread-scoped memory**: `MemoryLoader` fetches recent DB turns and rewrites short
-  follow-up queries into standalone search queries.
 - **Express server-side proxy**: `server/index.js` attaches the API key server-side so it
   never reaches the browser bundle — every client call, including document upload, goes
   through `/api/proxy/*`. In production the same process also serves the Vite-built static
