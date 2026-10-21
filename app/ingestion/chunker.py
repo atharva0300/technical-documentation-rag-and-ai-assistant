@@ -1,12 +1,15 @@
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from app.config import settings
 from app.embeddings.model import EMBEDDING_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
 _tokenizer = None
+
+_PAGE_MARKER_REGEX = re.compile(r'^##\s+Page\s+(\d+)\s*$', re.MULTILINE)
+_MIN_CHUNK_CHARS = 20
 
 
 def get_model_tokenizer():
@@ -54,14 +57,24 @@ class TokenAwareChunker:
         chunks: List[Dict[str, Any]] = []
 
         current_lines: List[str] = []
+        # (section, page) in effect at each line of current_lines, so a chunk is labelled
+        # by where it actually starts rather than by whatever heading the next line opens.
+        current_states: List[Tuple[Optional[str], Optional[int]]] = []
         current_tokens = 0
-        current_section = "Overview"
+        current_section = None
+        current_page = None
         in_code_fence = False
         fence_char = ""
 
         for line in lines:
+            page_match = _PAGE_MARKER_REGEX.match(line.strip())
             header_match = re.match(r'^(#{1,6})\s+(.+)$', line.strip())
-            if header_match and not in_code_fence:
+            if page_match and not in_code_fence:
+                # "## Page N" markers come from PDF extraction (app/ingestion/loader.py):
+                # they say where a chunk is, not what it's about, so they set the page and
+                # leave the current section heading alone.
+                current_page = int(page_match.group(1))
+            elif header_match and not in_code_fence:
                 current_section = header_match.group(2).strip()
 
             fence_match = re.match(r'^(```|~~~)', line.strip())
@@ -76,37 +89,63 @@ class TokenAwareChunker:
             line_tokens = self._estimate_tokens(line)
 
             if current_tokens + line_tokens > self.max_tokens and current_lines and not in_code_fence:
-                chunk_content = "".join(current_lines).strip()
-                chunks.append({
-                    "content": chunk_content,
-                    "section": current_section,
-                    "token_count": self._estimate_tokens(chunk_content),
-                    "has_code": "```" in chunk_content or "~~~" in chunk_content
-                })
+                self._append_chunk(chunks, current_lines, current_states)
 
                 overlap_lines = []
+                overlap_states = []
                 overlap_toks = 0
-                for prev_line in reversed(current_lines):
+                for prev_line, prev_state in zip(reversed(current_lines), reversed(current_states)):
                     pt_toks = self._estimate_tokens(prev_line)
                     if overlap_toks + pt_toks > self.overlap_tokens:
                         break
                     overlap_lines.insert(0, prev_line)
+                    overlap_states.insert(0, prev_state)
                     overlap_toks += pt_toks
 
                 current_lines = overlap_lines
+                current_states = overlap_states
                 current_tokens = overlap_toks
 
             current_lines.append(line)
+            current_states.append((current_section, current_page))
             current_tokens += line_tokens
 
         if current_lines:
-            chunk_content = "".join(current_lines).strip()
-            if chunk_content:
-                chunks.append({
-                    "content": chunk_content,
-                    "section": current_section,
-                    "token_count": self._estimate_tokens(chunk_content),
-                    "has_code": "```" in chunk_content or "~~~" in chunk_content
-                })
+            self._append_chunk(chunks, current_lines, current_states)
 
         return chunks
+
+    def _append_chunk(
+        self,
+        chunks: List[Dict[str, Any]],
+        lines: List[str],
+        states: List[Tuple[Optional[str], Optional[int]]],
+    ) -> None:
+        chunk_content = "".join(lines).strip()
+        # Skip chunks with no real text, e.g. pages left empty once table-of-contents
+        # lines are dropped (only page markers / headings remain).
+        body = _PAGE_MARKER_REGEX.sub("", chunk_content)
+        if len(re.sub(r'[#\s]', "", body)) < _MIN_CHUNK_CHARS:
+            return
+        # Label by the first section heading the chunk itself opens, if any; otherwise by
+        # the section it continues from.
+        section, page = states[0]
+        for line_section, _ in states:
+            if line_section != states[0][0]:
+                section = line_section
+                break
+        chunks.append({
+            "content": chunk_content,
+            "section": _section_label(section, page),
+            "page": page,
+            "token_count": self._estimate_tokens(chunk_content),
+            "has_code": "```" in chunk_content or "~~~" in chunk_content
+        })
+
+
+def _section_label(section: Optional[str], page: Optional[int]) -> str:
+    """Human-readable location for citations: "7.14 Registering a LoadTimeWeaver · p. 170"
+    for PDFs, the markdown heading for markdown docs."""
+    if page is None:
+        return section or "Overview"
+    return f"{section} · p. {page}" if section else f"Page {page}"

@@ -1,7 +1,10 @@
 import os
+import re
 import hashlib
 import logging
 from pypdf import PdfReader
+
+from app.ingestion.cleaner import is_toc_line
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,32 @@ def generate_document_id(source: str, content: str) -> str:
     hasher.update(content.encode("utf-8", errors="replace"))
     return hasher.hexdigest()[:16]
 
+# Numbered section heading on its own line, as PDF text extraction emits them, e.g.
+# "7.14 Registering a LoadTimeWeaver" or "9.5.2 Formatter SPI". Requires at least two
+# number levels so numbered list steps ("1. Create a bean") aren't mistaken for headings.
+_PDF_HEADING_REGEX = re.compile(r'^(\d{1,2}(?:\.\d{1,3}){1,3})\.?\s+([A-Z@][^\n]{2,90})$')
+
+
+def _is_pdf_heading(line: str) -> bool:
+    match = _PDF_HEADING_REGEX.match(line)
+    if not match or is_toc_line(line):
+        return False
+    title = match.group(2).rstrip()
+    # Headings are short and don't end like a sentence or a wrapped line
+    return len(title.split()) <= 12 and not title.endswith((".", ",", ";", ":"))
+
+
+def _mark_pdf_headings(text: str) -> str:
+    """Turn numbered section headings into markdown headings, so the chunker records
+    the real section a chunk belongs to (used for citation labels) instead of only
+    the page it came from."""
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        lines.append(f"### {stripped}" if _is_pdf_heading(stripped) else line)
+    return "\n".join(lines)
+
+
 def _read_pdf_file(file_path: str) -> str:
     """Extract text from PDF page by page."""
     try:
@@ -24,7 +53,7 @@ def _read_pdf_file(file_path: str) -> str:
         for idx, page in enumerate(reader.pages, start=1):
             text = page.extract_text()
             if text and text.strip():
-                pages_text.append(f"## Page {idx}\n{text.strip()}")
+                pages_text.append(f"## Page {idx}\n{_mark_pdf_headings(text.strip())}")
         return "\n\n".join(pages_text)
     except Exception as e:
         logger.error(f"Error extracting PDF text from {file_path}: {e}")

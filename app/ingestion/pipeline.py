@@ -70,7 +70,8 @@ def ingest_document(db: Session, file_path: str) -> Dict[str, Any]:
                     "section": c_data["section"],
                     "chunk_index": idx,
                     "document_hash": content_hash,
-                    "has_code": c_data.get("has_code", False)
+                    "has_code": c_data.get("has_code", False),
+                    "page": c_data.get("page")
                 }
                 new_chunk = Chunk(
                     document_id=existing_doc.id,
@@ -126,7 +127,8 @@ def ingest_document(db: Session, file_path: str) -> Dict[str, Any]:
                 "section": c_data["section"],
                 "chunk_index": idx,
                 "document_hash": content_hash,
-                "has_code": c_data.get("has_code", False)
+                "has_code": c_data.get("has_code", False),
+                "page": c_data.get("page")
             }
             new_chunk = Chunk(
                 document_id=new_doc.id,
