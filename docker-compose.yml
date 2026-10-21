@@ -21,6 +21,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: engineering-ai-api
+    # host.docker.internal only resolves automatically on Docker Desktop; on Linux it
+    # must be mapped to the host gateway or OLLAMA_BASE_URL below can't be reached.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     environment:

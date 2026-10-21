@@ -79,7 +79,9 @@ if ! $SKIP_OLLAMA; then
       echo "Ollama already serving at $OLLAMA_URL."
     else
       echo "Starting Ollama (logs: /tmp/ollama-serve.log)..."
-      nohup ollama serve >/tmp/ollama-serve.log 2>&1 &
+      # Bind beyond loopback: the api container reaches Ollama via host.docker.internal
+      # (the docker bridge gateway), which a 127.0.0.1-only listener rejects.
+      OLLAMA_HOST="${OLLAMA_HOST:-0.0.0.0:11434}" nohup ollama serve >/tmp/ollama-serve.log 2>&1 &
       disown
       for _ in $(seq 1 15); do
         curl -sf "$OLLAMA_URL" >/dev/null 2>&1 && break
