@@ -107,7 +107,36 @@ $REBUILD && COMPOSE_UP_ARGS+=(--build)
 COMPOSE_UP_ARGS+=("${COMPOSE_SERVICES[@]}")
 
 echo "Starting: ${COMPOSE_SERVICES[*]}"
-"${COMPOSE[@]}" "${COMPOSE_UP_ARGS[@]}"
+# A build triggered here can take several minutes — stream it live via `tee` instead of
+# capturing it in a variable (command substitution buffers ALL output until the command
+# exits, which looks exactly like a hang on a long build). PIPESTATUS[0] recovers docker
+# compose's real exit code since it's no longer the last command in the pipeline.
+up_log="$(mktemp)"
+set +e
+"${COMPOSE[@]}" "${COMPOSE_UP_ARGS[@]}" 2>&1 | tee "$up_log"
+up_status=${PIPESTATUS[0]}
+set -e
+if [ "$up_status" -ne 0 ]; then
+  if grep -q "already in use by container" "$up_log"; then
+    conflicting=$(grep -oE '"/[a-zA-Z0-9_.-]+"' "$up_log" | tr -d '"/' | sort -u)
+    echo ""
+    echo "A container with that name already exists outside this compose project"
+    echo "(e.g. from a previous manual 'docker run', or a build that failed partway)."
+    echo "Remove it and re-run:"
+    for name in $conflicting; do
+      echo "  docker rm -f $name"
+    done
+  elif grep -qi "no space left on device" "$up_log"; then
+    echo ""
+    echo "Docker's storage is out of space. Reclaim space from the failed build, then re-run:"
+    echo "  docker builder prune -af"
+    echo "  docker image prune -af"
+    echo "  df -h"
+  fi
+  rm -f "$up_log"
+  exit 1
+fi
+rm -f "$up_log"
 
 # `--wait` (Docker Compose v2.17+) blocks until every started service reports healthy
 # (per the healthchecks already defined in docker-compose.yml) instead of racing ahead.
