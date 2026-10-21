@@ -236,7 +236,9 @@ async def api_upload_document(file: UploadFile = File(...), db: Session = Depend
         with open(file_path, "wb") as f:
             f.write(content)
 
-        result = ingest_document(db, file_path)
+        # Ingestion is CPU-bound (parsing + embedding); run it in a worker thread so it
+        # doesn't block the event loop and stall every other request while it runs.
+        result = await asyncio.to_thread(ingest_document, db, file_path)
         return IngestResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload and ingest document: {str(e)}")

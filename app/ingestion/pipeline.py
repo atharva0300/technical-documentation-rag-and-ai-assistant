@@ -8,7 +8,7 @@ from app.database.models import Document, Chunk
 from app.ingestion.loader import load_file
 from app.ingestion.cleaner import clean_text
 from app.ingestion.chunker import TokenAwareChunker
-from app.embeddings.model import generate_embedding, EMBEDDING_MODEL_NAME
+from app.embeddings.model import generate_embeddings_batch, EMBEDDING_MODEL_NAME
 from app.retrieval.bm25 import invalidate_bm25_cache
 from app.graph.community_builder import rebuild_knowledge_graph
 
@@ -63,8 +63,8 @@ def ingest_document(db: Session, file_path: str) -> Dict[str, Any]:
             existing_doc.chunking_config = chunking_config_str
             existing_doc.embedding_model = EMBEDDING_MODEL_NAME
 
-            for idx, c_data in enumerate(chunks_data):
-                embedding = generate_embedding(c_data["content"])
+            embeddings = generate_embeddings_batch([c["content"] for c in chunks_data])
+            for idx, (c_data, embedding) in enumerate(zip(chunks_data, embeddings)):
                 meta = {
                     "source": source_path,
                     "section": c_data["section"],
@@ -117,8 +117,10 @@ def ingest_document(db: Session, file_path: str) -> Dict[str, Any]:
         db.add(new_doc)
         db.flush()  # Populate new_doc.id
 
-        for idx, c_data in enumerate(chunks_data):
-            embedding = generate_embedding(c_data["content"])
+        # Batched: encoding chunks one at a time left most of the CPU idle between
+        # tiny forward passes and made large documents take many minutes.
+        embeddings = generate_embeddings_batch([c["content"] for c in chunks_data])
+        for idx, (c_data, embedding) in enumerate(zip(chunks_data, embeddings)):
             meta = {
                 "source": source_path,
                 "section": c_data["section"],
