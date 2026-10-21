@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     VERSION: str = "2.0.0"
     
     # Environment & Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://raguser:ragpassword@localhost:5444/ragdb")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+psycopg2://raguser:ragpassword@localhost:5444/ragdb")
     
     # Ollama / Local LLM
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

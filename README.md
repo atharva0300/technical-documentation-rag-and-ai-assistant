@@ -159,7 +159,7 @@ docker run -d \
 ### Step 2 — Start the MCP server
 
 ```bash
-export DATABASE_URL=postgresql://raguser:ragpassword@localhost:5444/ragdb
+export DATABASE_URL=postgresql+psycopg2://raguser:ragpassword@localhost:5444/ragdb
 export MCP_API_KEY=mcp-secret-token
 .venv/bin/python -m mcp_server.server
 ```
@@ -167,7 +167,7 @@ export MCP_API_KEY=mcp-secret-token
 ### Step 3 — Start the FastAPI backend
 
 ```bash
-export DATABASE_URL=postgresql://raguser:ragpassword@localhost:5444/ragdb
+export DATABASE_URL=postgresql+psycopg2://raguser:ragpassword@localhost:5444/ragdb
 export OLLAMA_BASE_URL=http://localhost:11434
 export OLLAMA_MODEL=qwen2.5:3b
 export MCP_API_KEY=mcp-secret-token
