@@ -18,6 +18,13 @@ lexically and via NLI entailment — before triggering a bounded retry on an ung
 
 ## System Architecture
 
+![Agent graph: memory and follow-up rewriting, router fast path, model-driven MCP tool-calling loop, evidence merger, answerer and verifier](docs/images/agent-graph.png)
+
+The agent graph above is rendered from [`docs/images/agent-graph.dot`](docs/images/agent-graph.dot)
+(`dot -Tpng -Gdpi=160 docs/images/agent-graph.dot -o docs/images/agent-graph.png`); its nodes
+and edges follow the compiled LangGraph in `app/agents/graph.py`. The diagram below shows the
+same flow end to end, from the browser to the database.
+
 ```mermaid
 graph TD
     User([User / Web Browser]) -->|HTTP / SSE Stream| Proxy[Express Server Proxy]

@@ -1,0 +1,56 @@
+digraph AgentGraph {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=13, bgcolor="white", pad=0.4, nodesep=0.45, ranksep=0.5,
+         label="Engineering AI Assistant — LangGraph supervisor (app/agents/graph.py)", labelloc=t, fontcolor="#111827"];
+  node  [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, color="#374151", fillcolor="#F3F4F6", penwidth=1.2, margin="0.18,0.08"];
+  edge  [fontname="Helvetica", fontsize=9.5, color="#4B5563", fontcolor="#374151", arrowsize=0.7];
+
+  start [label="START\nPOST /api/v2/agent/query | /agent/stream", shape=oval, fillcolor="#E5E7EB"];
+  end   [label="END\nanswer + sources + verification_status", shape=oval, fillcolor="#E5E7EB"];
+
+  load_memory_node [label="load_memory_node\n• load last turns for conversation_id\n• drop the just-saved current question\n• QueryContextualizer: LLM rewrites follow-ups\n  into a standalone question (temp 0)\n• guard: rewrite must keep key terms", fillcolor="#DBEAFE", color="#1D4ED8"];
+  plan_node [label="plan_node\nsemantic router (embedding similarity)\nfast path only — never selects tools", fillcolor="#DBEAFE", color="#1D4ED8"];
+
+  subgraph cluster_agent {
+    label="agent_retrieval_node — model-driven tool calling (app/agents/tool_agent.py)"; style="rounded,dashed"; color="#7C3AED"; fontcolor="#5B21B6"; fontsize=11;
+    llm_turn [label="LLM turn (Ollama tools=…)\ntemperature 0, seed, ≤96 tokens\nemits tool_calls with its own args\nor stops", fillcolor="#EDE9FE", color="#7C3AED"];
+    guard [label="guardrails\n• tool name ∈ live MCP manifest\n• args validated vs MCP JSON schema\n• unknown args rejected (model retries)\n• top_k clamped 3–8\n• MAX_TOOL_CALLS / circuit breaker", fillcolor="#FEF3C7", color="#B45309"];
+    exec [label="execute calls via MCP\n(same-round calls run concurrently)\nresults → tool messages", fillcolor="#EDE9FE", color="#7C3AED"];
+    fallback [label="deterministic fallback\nplain search if model down / no valid call /\nonly navigation data for a docs question", fillcolor="#FEF3C7", color="#B45309"];
+    llm_turn -> guard [label="tool_calls"];
+    guard -> exec [label="valid"];
+    guard -> llm_turn [label="error message", style=dashed];
+    exec -> llm_turn [label="results  (≤ AGENT_MAX_TOOL_ROUNDS = 3)"];
+    llm_turn -> fallback [label="no doc passages", style=dashed];
+  }
+
+  subgraph cluster_mcp {
+    label="MCP server :8765 (mcp_server/server.py) — 8 tools"; style="rounded,filled"; fillcolor="#F0FDF4"; color="#15803D"; fontcolor="#166534"; fontsize=11;
+    t_search [label="search_documentation\nsearch_code_examples", fillcolor="#DCFCE7", color="#15803D"];
+    t_nav [label="get_section · expand_passage\nlist_documents · get_table_of_contents", fillcolor="#DCFCE7", color="#15803D"];
+    t_graph [label="find_related · survey_topic\n(GraphRAG-lite)", fillcolor="#DCFCE7", color="#15803D"];
+    pg [label="PostgreSQL + pgvector\ndense + BM25 → RRF → cross-encoder", shape=cylinder, fillcolor="#FFFFFF", color="#15803D"];
+    t_search -> pg; t_nav -> pg; t_graph -> pg;
+  }
+
+  evidence_merger_node [label="evidence_merger_node\ndedupe, sort by reranker score,\nassign citation ids [1..10]", fillcolor="#DBEAFE", color="#1D4ED8"];
+  answer_node [label="answer_node\nanswerer on the standalone question\nprose + inline [n] + Markdown/code\n(streams tokens on first attempt)", fillcolor="#DBEAFE", color="#1D4ED8"];
+  verify_node [label="verify_node\n1. citation syntax / range\n2. per-citation technical-token grounding\n3. NLI entailment (no contradictions)\ncode blocks checked as whole units", fillcolor="#DBEAFE", color="#1D4ED8"];
+  refuse [label="REFUSE\nno valid citation after retries,\nor graph stopped mid-retry", fillcolor="#FEE2E2", color="#B91C1C"];
+
+  start -> load_memory_node;
+  load_memory_node -> plan_node [label="standalone question"];
+  plan_node -> answer_node [label="chitchat / out_of_scope\n(no retrieval)", style=dashed];
+  plan_node -> llm_turn [label="everything else"];
+  exec -> t_search [dir=both, color="#15803D", style=dotted];
+  exec -> t_nav [dir=both, color="#15803D", style=dotted];
+  exec -> t_graph [dir=both, color="#15803D", style=dotted];
+  llm_turn -> evidence_merger_node [label="done: evidence"];
+  fallback -> evidence_merger_node;
+  evidence_merger_node -> answer_node;
+  answer_node -> verify_node;
+  verify_node -> end [label="VALID / PARTIAL"];
+  verify_node -> answer_node [label="RETRY: citation format\n(same evidence)", style=dashed, color="#B45309", fontcolor="#B45309"];
+  verify_node -> llm_turn [label="RETRY: ungrounded content\n(+ verifier feedback)", style=dashed, color="#B45309", fontcolor="#B45309"];
+  verify_node -> refuse [label="out of retries", color="#B91C1C", fontcolor="#B91C1C"];
+  refuse -> end;
+}
