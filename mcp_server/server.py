@@ -1,5 +1,7 @@
 import logging
 import os
+import threading
+import time
 
 from mcp.server.mcpserver import MCPServer
 from starlette.responses import JSONResponse
@@ -56,10 +58,26 @@ class AuthMiddleware:
         await response(scope, receive, send)
 
 
+def _warm_up_search() -> None:
+    """Run one throwaway search so the embedding model, the cross-encoder reranker and
+    the BM25 index are loaded before the first real request. Cold, that first search
+    takes ~20s on CPU, long enough for the api's tool call to time out and answer the
+    user's first question with no evidence."""
+    started = time.monotonic()
+    try:
+        tool_search_documentation(query="warm up", top_k=1)
+        logger.info("Search warm-up finished in %.1fs", time.monotonic() - started)
+    except Exception:
+        logger.exception("Search warm-up failed; the first real search will load models instead")
+
+
 def main() -> None:
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_PORT", "8765"))
     logger.info("Starting MCP Technical Documentation Server on %s:%s", host, port)
+
+    # In the background so /health and the server come up immediately.
+    threading.Thread(target=_warm_up_search, name="search-warm-up", daemon=True).start()
 
     app = mcp.streamable_http_app(host=host)
     app.add_middleware(AuthMiddleware)
