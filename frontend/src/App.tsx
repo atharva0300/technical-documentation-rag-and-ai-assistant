@@ -223,12 +223,15 @@ export default function App() {
                     <span
                       key={i}
                       className="citation-badge"
+                      title={src.title || src.source}
                       onClick={() => {
                         setActiveSources(msg.sources || [])
                         setActiveSourceId(src.source_id || i + 1)
                       }}
                     >
-                      [{src.source_id || i + 1}] {src.title || src.source}
+                      {/* The section (e.g. "7.14 Registering a LoadTimeWeaver · p. 170") says
+                          where in the docs a citation points; the document title is the tooltip. */}
+                      [{src.source_id || i + 1}] {src.section || src.title || src.source}
                     </span>
                   ))}
                 </div>
