@@ -13,6 +13,7 @@ def tool_search_documentation(query: str, top_k: int = 5, filters: Optional[Dict
     db = SessionLocal()
     try:
         results = perform_search(db, query, top_k=top_k, strategy="hybrid_rerank", filters=filters)
-        return json.dumps(results, indent=2)
+        # default=str: result metadata can carry datetimes, which json can't encode natively.
+        return json.dumps(results, indent=2, default=str)
     finally:
         db.close()

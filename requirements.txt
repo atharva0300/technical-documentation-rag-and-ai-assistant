@@ -12,7 +12,7 @@ pytest-asyncio
 python-dotenv
 rank_bm25
 langgraph
-mcp
+mcp==2.3.0
 networkx
 opentelemetry-api
 opentelemetry-sdk

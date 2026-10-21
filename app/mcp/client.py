@@ -168,11 +168,14 @@ class MCPClient:
             from mcp.client.streamable_http import streamable_http_client
 
             async def _execute():
-                async with httpx.AsyncClient(headers=self._auth_headers()) as http_cl:
+                async with httpx.AsyncClient(headers=self._auth_headers(), timeout=self.timeout_seconds) as http_cl:
                     async with Client(streamable_http_client(self.server_url, http_client=http_cl)) as client:
                         return await client.list_tools()
 
-            raw_tools = await asyncio.wait_for(_execute(), timeout=self.timeout_seconds)
+            result = await asyncio.wait_for(_execute(), timeout=self.timeout_seconds)
+            # mcp>=2.3 returns a ListToolsResult model (iterating it yields field tuples,
+            # not tools); older versions returned the list directly.
+            raw_tools = getattr(result, "tools", result)
 
             tools: List[Dict[str, Any]] = []
             for t in raw_tools:
@@ -220,7 +223,7 @@ class MCPClient:
             async def _execute():
                 import httpx
                 from mcp.client.streamable_http import streamable_http_client
-                async with httpx.AsyncClient(headers=self._auth_headers()) as http_cl:
+                async with httpx.AsyncClient(headers=self._auth_headers(), timeout=self.timeout_seconds) as http_cl:
                     async with Client(streamable_http_client(self.server_url, http_client=http_cl)) as client:
                         res = await client.call_tool(tool_name, arguments)
                         return res
