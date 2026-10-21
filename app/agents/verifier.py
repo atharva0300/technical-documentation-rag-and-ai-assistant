@@ -206,7 +206,14 @@ class VerifierAgent:
             )
 
         if valid_sentences:
-            cleaned_text = " ".join(valid_sentences)
+            # Remove only the unsupported sentences from the original text, instead of
+            # re-joining the valid ones with spaces, so paragraphs, lists and code blocks
+            # in the answer keep their formatting.
+            cleaned_text = answer
+            for sentence in unsupported_sentences:
+                cleaned_text = cleaned_text.replace(sentence, "", 1)
+            cleaned_text = re.sub(r'[ \t]+\n', '\n', cleaned_text)
+            cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text).strip()
             return VerificationResult(
                 status="PARTIAL",
                 cleaned_answer=cleaned_text,
