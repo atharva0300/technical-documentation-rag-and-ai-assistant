@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import SourceDrawer, { SourceItem } from './components/SourceDrawer'
 import AgentTracePanel from './components/AgentTracePanel'
 import DocumentUploadModal from './components/DocumentUploadModal'
+import MarkdownMessage from './components/MarkdownMessage'
 
 interface MessageItem {
   id: string
@@ -216,7 +217,17 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+              {msg.role === 'assistant' ? (
+                <MarkdownMessage
+                  content={msg.content}
+                  onCitationClick={(citationId) => {
+                    setActiveSources(msg.sources || [])
+                    setActiveSourceId(citationId)
+                  }}
+                />
+              ) : (
+                <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+              )}
               {msg.sources && msg.sources.length > 0 && (
                 <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                   {msg.sources.map((src, i) => (
