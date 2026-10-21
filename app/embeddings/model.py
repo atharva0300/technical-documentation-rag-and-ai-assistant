@@ -1,8 +1,6 @@
-import os
 from sentence_transformers import SentenceTransformer
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.config import settings
 
 # all-MiniLM-L6-v2 was trained for general sentence similarity (STS), not
 # specifically for retrieval ranking. bge-base-en-v1.5 is trained with a
@@ -12,7 +10,9 @@ load_dotenv()
 # because this project accepts arbitrary uploaded technical documentation,
 # not one fixed domain. NOTE: this is a 768-dim model (MiniLM was 384-dim) --
 # switching requires re-embedding the corpus; see docs/ENVIRONMENT.md.
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
+# Read from settings (app/config.py) so there is a single source of truth -- a
+# separate EMBEDDING_MODEL env var here once silently overrode it with MiniLM.
+EMBEDDING_MODEL_NAME = settings.EMBEDDING_MODEL_NAME
 
 _model = None
 

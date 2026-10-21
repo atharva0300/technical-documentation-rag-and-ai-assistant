@@ -1,11 +1,12 @@
-import os
 import logging
 from typing import List, Dict, Any
 from sentence_transformers import CrossEncoder
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
-RERANKER_MODEL_NAME = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+RERANKER_MODEL_NAME = settings.RERANKER_MODEL_NAME
 
 _reranker_model = None
 
