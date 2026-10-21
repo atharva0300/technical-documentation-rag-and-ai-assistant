@@ -98,7 +98,12 @@ Lists ingested documents with their chunk counts.
 Ingests a single file from a server-local path (`{"file_path": "..."}`).
 
 ### 1.6 `POST /api/v2/documents/upload`
-Uploads and ingests a markdown/text file (multipart form, field `file`).
+Uploads and ingests a PDF, Markdown or text file (multipart form, field `file`). The request
+returns once ingestion finishes (an `IngestResponse` with `status` `success`, `updated` or
+`skipped` and `chunks_created`). Ingestion runs in a worker thread, so other requests are
+served meanwhile. Re-uploading a file with the same name replaces its chunks when the content
+changed and is skipped when it's identical. Large PDFs can take several minutes; see
+"Uploading large documents" in the README.
 
 ### 1.7 `POST /api/v2/documents/sync`
 Syncs a directory (`{"directory_path": "data/documents"}`): ingests new/changed files,

@@ -72,7 +72,9 @@ graph TD
   (`app/retrieval/semantic_router.py`) matches the query against example utterances per
   category via embedding cosine similarity, generalizing across phrasing instead of
   enumerating it — falls through to an LLM classification pass only below a confidence
-  threshold.
+  threshold. The categories that skip retrieval (chitchat, out-of-scope) need a stricter
+  0.65 similarity (vs 0.45 for the retrieval strategies), calibrated for bge-base so a
+  real question like "what is spring?" is never answered with a canned greeting.
 - **Live, generic MCP tool selection**: the planner resolves which tool to call by
   inspecting the MCP server's *live* `list_tools()` manifest (`app/mcp/client.py`), never a
   hardcoded tool name. Adding, renaming, or removing a tool on the server needs no planner
@@ -88,15 +90,31 @@ graph TD
   paths — fused with a lexical-specificity-weighted Reciprocal Rank Fusion (the query's own
   BM25 IDF profile against the current corpus biases the dense/BM25 blend per query, with
   no hardcoded vocabulary) and reranked with a cross-encoder (`ms-marco-MiniLM-L-6-v2`).
+- **Ingestion**: PDF/Markdown/text are cleaned and chunked with the embedding model's own
+  tokenizer, then embedded in batches (`generate_embeddings_batch`). Numbered PDF section
+  headings ("7.14 Registering a LoadTimeWeaver") become each chunk's section, so citations
+  read `7.14 Registering a LoadTimeWeaver · p. 170` instead of only a page number, and
+  table-of-contents dot-leader lines are dropped so they don't crowd real sections out of
+  keyword search. Uploads run in a worker thread, so a long ingest doesn't block other
+  requests.
+- **Natural, inline-cited answers**: the answerer prompt asks for a direct answer followed
+  by an explanation in prose, with `[n]` placed right after the sentence it supports
+  (rather than a source-by-source dump), and Markdown/code blocks where useful. The
+  frontend renders answers as Markdown (`react-markdown` + `remark-gfm`) and turns each
+  inline `[n]` into a chip that opens that source.
 - **Verifier**: citation syntax/range check, then per-citation (not pooled) technical-token
   grounding, then NLI entailment (`cross-encoder/nli-deberta-v3-small`) between the cited
   chunk and the sentence citing it — catches "right term, wrong claim" errors a lexical-only
   check misses. A citation-format failure regenerates from the *same* evidence; an
   ungrounded-content failure re-retrieves via the same `retrieval_strategy`. Bounded by
-  `MAX_RETRIES`.
+  `MAX_RETRIES`. Unsupported sentences are removed from the answer in place, keeping its
+  paragraphs, lists and code blocks intact.
 - **MCP tool-calling**: a standalone MCP server (Streamable HTTP, bearer-auth) currently
   exposes one tool, `search_documentation` — but nothing in the client/planner path assumes
-  that; see "Live, generic MCP tool selection" above.
+  that; see "Live, generic MCP tool selection" above. The server runs one warm-up search at
+  startup (in the background) so the first real query doesn't pay the ~20s model-load and
+  BM25-index cost and time out. `mcp` is pinned (`mcp==2.3.0`) because its client API
+  changed shape between releases.
 - **Process-wide circuit breaker with half-open recovery**: the MCP client trips after
   repeated consecutive tool failures and stays tripped across requests (not per-request).
   After a cooldown it allows exactly one trial call through (half-open); success closes the
@@ -128,7 +146,8 @@ started separately.
 1. **Python 3.11+** virtual environment at `.venv/`
 2. **Node.js 20+** and `npm`
 3. **Docker** (for PostgreSQL pgvector)
-4. **Ollama** (local LLM runtime, `ollama pull qwen2.5:3b`)
+4. **Ollama** (local LLM runtime, `ollama pull qwen2.5:3b`). When the API runs in Docker,
+   Ollama must listen beyond loopback — see [Ollama and Docker](#ollama-and-docker).
 
 ### Fastest path — one script
 
@@ -136,7 +155,7 @@ started separately.
 ./scripts/run_backend.sh
 ```
 
-Starts/confirms Ollama (serving + model pulled), brings up `postgres`, `mcp-server`, and
+Starts/confirms Ollama (serving on `0.0.0.0:11434` + model pulled), brings up `postgres`, `mcp-server`, and
 `api` via `docker compose`, waits for all three to report healthy, and prints the API docs
 URL. Pass `--with-frontend` to also build and start the `frontend` compose service. Run it
 with `--help` for every flag (`--no-ollama`, `--rebuild`, `--down`, ...). This is what the
@@ -193,6 +212,37 @@ and the proxy together.
 Website: **http://localhost:5173** (dev) or **http://localhost:3000** (production/Docker)
 
 ### Or: `docker-compose up` brings up all four services together.
+
+### Ollama and Docker
+
+Ollama runs on the host; the `api` container reaches it at `http://host.docker.internal:11434`
+(`docker-compose.yml` maps that name to the host gateway, which Linux needs). Two things
+must hold for that to work:
+
+1. **Ollama listens on all interfaces**, not just `127.0.0.1`. `run_backend.sh` starts it
+   that way; if you start it yourself, use `OLLAMA_HOST=0.0.0.0:11434 ollama serve`.
+2. **The host firewall lets Docker networks reach port 11434.** With ufw:
+   `sudo ufw allow in from 172.16.0.0/12 to any port 11434 proto tcp`
+
+Check it from inside the container:
+```bash
+docker compose exec api curl -s http://host.docker.internal:11434/api/version
+```
+
+If Ollama can't be reached, answers fall back to raw excerpts introduced with "The language
+model is unavailable right now", which is the sign to check the two points above.
+
+### Uploading large documents
+
+Ingestion is CPU-bound: a ~900-page PDF (the Spring Framework reference) takes ~10–13
+minutes to chunk and embed. The API stays responsive meanwhile, but the frontend proxy's
+request may time out after 5 minutes even though ingestion completes. For large files,
+upload straight to the API:
+```bash
+curl -X POST http://localhost:8000/api/v2/documents/upload \
+  -H "X-API-Key: dev-api-key" -F "file=@path/to/document.pdf"
+```
+Re-uploading a file with the same name replaces its chunks in place.
 
 ---
 

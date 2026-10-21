@@ -20,20 +20,25 @@
 | PostgreSQL | 16.15 (Docker) |
 | pgvector | 0.8.6 |
 | Pandoc | 3.11 (downloaded to `.venv/bin/pandoc`) |
-| Ollama | Installed (`/usr/local/bin/ollama`) — **NOT reachable** on port 11434 |
+| Ollama | 0.34.2 (`/usr/local/bin/ollama`), serving on `0.0.0.0:11434` |
+| `mcp` (Python SDK) | 2.3.0 (pinned in `requirements.txt`) |
 
 ## LLM Availability
 
-**e2e baseline: NOT AVAILABLE**
+The API calls a local Ollama server (`OLLAMA_BASE_URL`, `OLLAMA_MODEL=qwen2.5:3b`).
 
-Ollama is installed but the server is not running. All end-to-end benchmarks requiring LLM generation are unavailable.
-
-To enable Ollama:
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama serve &
+OLLAMA_HOST=0.0.0.0:11434 ollama serve &
 ollama pull qwen2.5:3b
 ```
+
+When the API runs in Docker it reaches the host's Ollama at
+`http://host.docker.internal:11434` (mapped to the host gateway in `docker-compose.yml`).
+That only works if Ollama listens on all interfaces (`OLLAMA_HOST=0.0.0.0:11434`; the
+default is `127.0.0.1`) and the host firewall allows Docker networks to reach port 11434
+(ufw: `sudo ufw allow in from 172.16.0.0/12 to any port 11434 proto tcp`). If Ollama is
+unreachable, the answerer falls back to returning raw excerpts.
 
 Ollama defaults every model's context window to 2048 tokens regardless of what the model
 actually supports. `OLLAMA_NUM_CTX` (default `8192`, see `app/config.py` and
@@ -52,6 +57,10 @@ config. Only local Ollama is supported.
 | `ms-marco-MiniLM-L-6-v2` | Cross-encoder reranker | Loaded via sentence-transformers |
 | `qwen2.5:3b` | Default local LLM | Requires Ollama running |
 
+Model names come from `app/config.py` (`EMBEDDING_MODEL_NAME`, `RERANKER_MODEL_NAME`,
+`NLI_MODEL_NAME`), which every component reads; set them there or via environment variables
+of the same names.
+
 ## Memory Constraints
 
 ~5.5 GiB available RAM (varies). Models loaded:
@@ -65,6 +74,10 @@ A 7B model is optional and not required for Phase 0.
 ## Chunk Sizing
 
 Chunk sizing uses the embedding model's Hugging Face tokenizer (`AutoTokenizer`), **not** `tiktoken` (which is not a dependency).
+Defaults are `MAX_CHUNK_SIZE=240` / `CHUNK_OVERLAP=30` tokens, within bge-base's 512-token limit.
+
+Ingestion embeds chunks in batches. On this CPU, the ~900-page Spring Framework reference
+PDF (~2,900 chunks) takes ~13 minutes end to end.
 
 ## Python Version Parity
 
