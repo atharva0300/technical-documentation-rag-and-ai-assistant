@@ -1,68 +1,82 @@
 import logging
 import os
 
-try:
-    from mcp.server.mcpserver import MCPServer as FastMCP
-except ImportError:
-    from mcp.server import Server as FastMCP
+from mcp.server.mcpserver import MCPServer
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from mcp_server.tools.documentation import tool_search_documentation
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("mcp_server")
 
-mcp = FastMCP("TechnicalDocumentationServer")
+mcp = MCPServer("TechnicalDocumentationServer")
 
 
 @mcp.tool()
-def search_documentation(query: str, top_k: int = 5, filters: dict = None) -> str:
-    """Search indexed technical documentation using hybrid retrieval (dense + BM25 + RRF) and cross-encoder reranking."""
+def search_documentation(
+    query: str,
+    top_k: int = 5,
+    filters: dict | None = None,
+) -> str:
+    """Search technical documentation using hybrid retrieval and reranking."""
     return tool_search_documentation(query=query, top_k=top_k, filters=filters)
 
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+class AuthMiddleware:
+    """Raw ASGI auth middleware; BaseHTTPMiddleware can break MCP streaming responses."""
 
+    def __init__(self, app: ASGIApp):
+        self.app = app
 
-class AuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        expected_key = os.getenv("MCP_API_KEY", "mcp-secret-token")
-        auth_header = request.headers.get("authorization", "")
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if path in {"/health", "/docs"}:
+            await self.app(scope, receive, send)
+            return
+
+        headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        auth_header = headers.get(b"authorization", b"").decode("latin-1")
         token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else ""
-        x_api_key = request.headers.get("x-mcp-api-key", "").strip()
-
-        if request.url.path in ["/health", "/docs"]:
-            return await call_next(request)
+        x_api_key = headers.get(b"x-mcp-api-key", b"").decode("latin-1").strip()
+        expected_key = os.getenv("MCP_API_KEY", "mcp-secret-token")
 
         if expected_key and (token == expected_key or x_api_key == expected_key):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        return JSONResponse({"error": "Unauthorized: Invalid or missing MCP API key"}, status_code=401)
+        response = JSONResponse(
+            {"error": "Unauthorized: Invalid or missing MCP API key"},
+            status_code=401,
+        )
+        await response(scope, receive, send)
 
 
-def main():
+def main() -> None:
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_PORT", "8765"))
-    logger.info(f"Starting MCP Technical Documentation Server on {host}:{port}...")
+    logger.info("Starting MCP Technical Documentation Server on %s:%s", host, port)
 
-    starlette_app = mcp.streamable_http_app(host=host)
-    starlette_app.add_middleware(AuthMiddleware)
+    app = mcp.streamable_http_app(host=host)
+    app.add_middleware(AuthMiddleware)
 
-    @starlette_app.route("/health")
     async def health(request):
         return JSONResponse({"status": "ok"})
 
+    app.add_route("/health", health, methods=["GET"])
+
     import uvicorn
-    import anyio
-    config = uvicorn.Config(
-        starlette_app,
-        host=host,
-        port=port,
-        log_level="info",
-    )
-    server = uvicorn.Server(config)
-    anyio.run(server.serve)
+
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logger.exception("MCP server process failed")
+        raise

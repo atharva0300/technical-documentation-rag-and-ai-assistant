@@ -1,0 +1,31 @@
+# Version-control and local Python environments
+.git/
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend dependencies/build outputs
+node_modules/
+**/node_modules/
+frontend/dist/
+frontend/.vite/
+.next/
+**/.next/
+
+# Local secrets, caches, temporary files and build artifacts
+.env
+.env.*
+!.env.example
+.cache/
+**/.cache/
+*.log
+build/
+dist/
+*.egg-info/
