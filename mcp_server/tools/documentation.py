@@ -17,3 +17,20 @@ def tool_search_documentation(query: str, top_k: int = 5, filters: Optional[Dict
         return json.dumps(results, indent=2, default=str)
     finally:
         db.close()
+
+
+def tool_search_code_examples(query: str, language: Optional[str] = None, top_k: int = 5) -> str:
+    """
+    Same hybrid search + reranking as search_documentation, restricted to passages that
+    contain code (detected at ingestion, including unfenced Java/XML from PDFs), optionally
+    in one language.
+    """
+    filters: Dict[str, Any] = {"has_code": True}
+    if language:
+        filters["language"] = language
+    db = SessionLocal()
+    try:
+        results = perform_search(db, query, top_k=top_k, strategy="hybrid_rerank", filters=filters)
+        return json.dumps(results, indent=2, default=str)
+    finally:
+        db.close()

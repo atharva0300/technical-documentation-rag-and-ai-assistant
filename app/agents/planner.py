@@ -49,6 +49,10 @@ def resolve_default_tool(available_tools: List[Dict[str, Any]]) -> Optional[str]
     candidates = [t.get("name") for t in available_tools if t.get("name") and tool_accepts_field(t, "query")]
     if len(candidates) == 1:
         return candidates[0]
+    # Several tools take a free-text query (e.g. a general search and a code-only search):
+    # use the configured general-purpose one if it's among them.
+    if settings.DEFAULT_RETRIEVAL_TOOL_FALLBACK in candidates:
+        return settings.DEFAULT_RETRIEVAL_TOOL_FALLBACK
     # Zero or multiple matches among a REAL, non-empty manifest is a genuine
     # "don't guess" case -- unlike the empty-manifest case above, we actually
     # know what tools exist and none of them is an unambiguous choice.
@@ -58,10 +62,10 @@ def resolve_default_tool(available_tools: List[Dict[str, Any]]) -> Optional[str]
 class PlannerAgent:
     """
     Cheap first pass over a query: short-circuits the cases that obviously need no
-    documentation (greetings, clearly off-topic requests) and picks the GraphRAG-lite
-    strategy for "exhaustive"/"relational" questions. Everything else goes to the
-    tool-calling agent (app/agents/tool_agent.py), where the model itself decides
-    which MCP tools to call and with what arguments.
+    documentation (greetings, clearly off-topic requests). Everything else goes to the
+    tool-calling agent (app/agents/tool_agent.py), where the model itself decides which
+    MCP tools to call (search, code search, sections, table of contents, GraphRAG-lite
+    related/survey tools) and with what arguments.
 
     Classification uses the semantic router (`app.retrieval.semantic_router`):
     embedding similarity against example utterances per category, not keyword lists.
@@ -126,8 +130,6 @@ class PlannerAgent:
             parts = [p.strip() for p in re.split(r"\band\b", clean_query, flags=re.IGNORECASE) if len(p.strip()) > 3][:3]
             if len(parts) >= 2:
                 intent, sub_q = "multi_hop", parts
-        elif category in ("exhaustive", "relational"):
-            strategy = category
 
         if category is None:
             reasoning = (f"Semantic router not confident (best similarity={score:.2f}); "

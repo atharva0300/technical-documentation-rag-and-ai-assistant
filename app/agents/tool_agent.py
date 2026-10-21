@@ -40,6 +40,7 @@ using what you find.
 
 - Call the tool that best fits the question, with arguments you choose. Write search queries
   as focused, self-contained phrases with the key technical terms.
+- Results include each passage's document_id and chunk_id, which other tools accept.
 - Read the results. If they don't cover the question (for example, a comparison needs both
   concepts, or a result is cut off), call a tool again with a different query or a tool that
   fetches more context.
@@ -236,7 +237,9 @@ class ToolCallingAgent:
                 passages = _parse_tool_result(response.get("result"))
                 new_passages = []
                 for p in passages:
-                    key = p.get("chunk_id") or (p.get("source"), p.get("content", "")[:80])
+                    # A section fetched with get_section can repeat a searched chunk trimmed
+                    # to the section boundary, so key on the text as well as the chunk.
+                    key = (p.get("chunk_id"), p.get("content", "")[:80])
                     if key not in seen_chunks:
                         seen_chunks.add(key)
                         new_passages.append(p)

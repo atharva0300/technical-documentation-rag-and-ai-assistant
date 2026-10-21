@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from app.config import settings
 from app.api.v2.routes import verify_api_key, AgentQueryRequest
 from app.agents.planner import PlannerAgent, PlanOutput
-from app.agents.graph import _invoke_selected_tool, plan_node
+from app.agents.graph import plan_node
 from app.agents.analysis import EvidenceMerger
 from app.agents.state import V2AgentState
 from app.core.llm_gateway import llm_gateway, LLMBudgetExhaustedError
@@ -50,85 +50,16 @@ def test_planner_resolves_fallback_tool_from_live_manifest():
     assert plan.needs_retrieval is True
 
 
+def test_planner_prefers_configured_general_search_when_several_tools_take_a_query():
+    code_tool = {"name": "search_code_examples", "input_schema": {"properties": {"query": {"type": "string"}}}}
+    plan = PlannerAgent.plan("explain the --memory flag in detail", available_tools=[code_tool, SEARCH_DOC_TOOL])
+    assert plan.selected_tool == settings.DEFAULT_RETRIEVAL_TOOL_FALLBACK == "search_documentation"
+
+
 def test_planner_records_no_tool_when_manifest_has_none_matching():
     plan = PlannerAgent.plan("explain the --memory flag in detail", available_tools=[{"name": "list_documents", "input_schema": {"properties": {}}}])
     assert plan.selected_tool is None
 
-
-@pytest.mark.asyncio
-async def test_invoke_selected_tool_executes_selected_tool_generically():
-    """
-    The graph-search fallback path must call whatever tool the planner resolved, via
-    the generic RetrievalAgent path — no tool name is hardcoded in the graph.
-    """
-    state: V2AgentState = {
-        "conversation_id": "test_conv",
-        "query": "explain --memory flag",
-        "rewritten_query": None,
-        "history": [],
-        "intent": "single_lookup",
-        "retrieval_strategy": "point_lookup",
-        "needs_retrieval": True,
-        "needs_tools": True,
-        "selected_tool": "search_documentation",
-        "tool_args": {"query": "explain --memory flag"},
-        "sub_questions": ["explain --memory flag"],
-        "filters": None,
-        "evidence": [],
-        "answer_draft": None,
-        "citations": [],
-        "verification_status": None,
-        "verification_feedback": None,
-        "unsupported_sentences": [],
-        "step_count": 0,
-        "llm_call_count": 0,
-        "tool_call_count": 0,
-        "retry_count": 0,
-        "trace_events": [],
-        "error": None
-    }
-
-    with patch("app.agents.retriever.mcp_client.call_tool_async", return_value={"status": "success", "result": "[]"}) as mock_call:
-        res = await _invoke_selected_tool(state)
-        mock_call.assert_called_once_with("search_documentation", {"query": "explain --memory flag", "top_k": 5})
-        assert res == []
-
-
-@pytest.mark.asyncio
-async def test_invoke_selected_tool_preserves_cli_hyphens_on_retry():
-    """Verify retry broadening preserves exact CLI hyphens (--memory, --max-old-space-size) during retry broadening."""
-    state: V2AgentState = {
-        "conversation_id": "test_cli",
-        "query": "--memory limit",
-        "rewritten_query": None,
-        "history": [],
-        "intent": "single_lookup",
-        "retrieval_strategy": "point_lookup",
-        "needs_retrieval": True,
-        "needs_tools": True,
-        "selected_tool": "search_documentation",
-        "tool_args": None,
-        "sub_questions": ["--memory limit", "--max-old-space-size"],
-        "filters": None,
-        "evidence": [],
-        "answer_draft": None,
-        "citations": [],
-        "verification_status": "RETRY",
-        "verification_feedback": "Missing CLI details",
-        "unsupported_sentences": [],
-        "step_count": 1,
-        "llm_call_count": 1,
-        "tool_call_count": 1,
-        "retry_count": 1,
-        "trace_events": [],
-        "error": None
-    }
-
-    with patch("app.agents.graph.RetrievalAgent.retrieve_subquestion_async", return_value=[]) as mock_retrieve:
-        await _invoke_selected_tool(state)
-        called_queries = [call.kwargs["query"] for call in mock_retrieve.call_args_list]
-        for q in called_queries:
-            assert q.startswith("--memory") or q.startswith("--max-old-space-size")
 
 def test_llm_gateway_budget_exhaustion():
     """Verify llm_gateway raises LLMBudgetExhaustedError when exceeding MAX_LLM_CALLS."""
@@ -171,45 +102,6 @@ def test_token_aware_chunker_max_token_bound():
         if chunker.tokenizer:
             tok_count = len(chunker.tokenizer.encode(content))
             assert tok_count <= 240
-
-@pytest.mark.asyncio
-async def test_invoke_selected_tool_makes_no_call_when_no_tool_resolved():
-    """
-    When no tool was resolved from the live manifest, the fallback retrieval path
-    makes no call at all — it never guesses a tool name.
-    """
-    state_invalid: V2AgentState = {
-        "conversation_id": "test_inv",
-        "query": "test query",
-        "rewritten_query": None,
-        "history": [],
-        "intent": "single_lookup",
-        "retrieval_strategy": "point_lookup",
-        "needs_retrieval": True,
-        "needs_tools": False,
-        "selected_tool": None,
-        "tool_args": {},
-        "sub_questions": ["test query"],
-        "filters": None,
-        "evidence": [],
-        "answer_draft": None,
-        "citations": [],
-        "verification_status": None,
-        "verification_feedback": None,
-        "unsupported_sentences": [],
-        "step_count": 0,
-        "llm_call_count": 0,
-        "tool_call_count": 0,
-        "retry_count": 0,
-        "trace_events": [],
-        "error": None,
-        "stream_handler": None
-    }
-
-    with patch("app.agents.retriever.mcp_client.call_tool_async") as mock_call:
-        res = await _invoke_selected_tool(state_invalid)
-        mock_call.assert_not_called()
-        assert res == []
 
 @pytest.mark.asyncio
 async def test_concurrency_budget_isolation():

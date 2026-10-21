@@ -4,7 +4,6 @@ from typing import Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
 from app.agents.state import V2AgentState
 from app.agents.planner import PlannerAgent
-from app.agents.retriever import RetrievalAgent
 from app.agents.analysis import EvidenceMerger
 from app.agents.answerer import AnswererAgent
 from app.agents.verifier import VerifierAgent, UNGROUNDED_REFUSAL
@@ -71,46 +70,6 @@ def plan_node(state: V2AgentState) -> Dict[str, Any]:
         }]
     }
 
-async def _invoke_selected_tool(state: V2AgentState) -> List[Dict[str, Any]]:
-    """
-    Shared retrieval helper: calls whatever tool the planner selected
-    (`state["selected_tool"]`, resolved generically against the live MCP
-    tool manifest -- see app.agents.planner) once per sub-question. This is
-    the fallback for local/global graph search when the knowledge graph has
-    nothing useful for a given query. (Ordinary questions go through the
-    model-driven tool-calling loop in `agent_retrieval_node` instead.)
-    """
-    sub_questions = state.get("sub_questions") or [state.get("rewritten_query") or state["query"]]
-    sub_questions = sub_questions[:settings.MAX_SUB_QUESTIONS]
-    filters = state.get("filters")
-    retry_count = state.get("retry_count", 0)
-    selected_tool = state.get("selected_tool")
-    tool_args = state.get("tool_args")
-
-    if not selected_tool:
-        logger.info("No tool resolved for retrieval — the live MCP manifest had no matching tool.")
-        return []
-
-    # On retry: broaden query while preserving exact CLI hyphens (--memory, --max-old-space-size) and adding verifier feedback
-    if retry_count > 0:
-        feedback = state.get("verification_feedback", "")
-        broadened = []
-        for sq in sub_questions:
-            stripped = sq.strip()
-            if feedback:
-                hint = feedback.split(".")[0][:60] if "." in feedback else feedback[:60]
-                stripped = f"{stripped} {hint}"
-            broadened.append(stripped)
-        sub_questions = broadened
-
-    all_evidence = []
-    for sq in sub_questions:
-        results = await RetrievalAgent.retrieve_subquestion_async(
-            query=sq, top_k=5, filters=filters, tool_name=selected_tool, tool_args=tool_args
-        )
-        all_evidence.extend(results)
-    return all_evidence
-
 # Router categories that mean "this clearly needs the documentation". Used only to decide
 # whether the tool-calling agent falls back to a plain search when the model makes no
 # valid tool call -- never to choose a tool.
@@ -150,95 +109,6 @@ async def agent_retrieval_node(state: V2AgentState) -> Dict[str, Any]:
         }]
     }
 
-
-async def local_search_node(state: V2AgentState) -> Dict[str, Any]:
-    """
-    GraphRAG-lite local search for "relational" queries (what depends on X,
-    what's affected by X) — entity-anchored graph traversal fused with
-    ordinary dense+BM25 retrieval via RRF (see app/graph/local_search.py).
-    Falls back to plain tool-based retrieval if the graph has nothing
-    relevant for this query (e.g. no entity match, or the graph hasn't been
-    built yet for this corpus).
-    """
-    from app.database.connection import SessionLocal
-    from app.graph.local_search import local_search as graph_local_search
-
-    query = state.get("rewritten_query") or state["query"]
-    filters = state.get("filters")
-
-    results = []
-    db = SessionLocal()
-    try:
-        results = graph_local_search(db, query, top_k=5, filters=filters)
-    except Exception as e:
-        logger.warning(f"Local graph search failed, falling back to tool retrieval: {e}")
-    finally:
-        db.close()
-
-    fallback_used = False
-    if not results:
-        results = await _invoke_selected_tool(state)
-        fallback_used = True
-
-    return {
-        "evidence": results,
-        "step_count": state.get("step_count", 0) + 1,
-        "llm_call_count": llm_gateway.llm_call_count,
-        "tool_call_count": mcp_client.total_tool_calls,
-        "trace_events": [{"node": "local_search", "fallback_used": fallback_used, "evidence_retrieved": len(results)}]
-    }
-
-async def global_search_node(state: V2AgentState) -> Dict[str, Any]:
-    """
-    GraphRAG-lite global search for "exhaustive" queries (find every place X
-    is mentioned, scattered across the corpus) — map-reduce over pre-built
-    community summaries (see app/graph/global_search.py) instead of ranking
-    individual chunks, which has no notion of whole-corpus coverage no
-    matter how `top_k` is tuned. Falls back to plain tool-based retrieval if
-    no knowledge graph has been built for this corpus yet, or nothing
-    relevant was found in it.
-    """
-    from app.database.connection import SessionLocal
-    from app.graph.global_search import answer_global
-
-    query = state.get("rewritten_query") or state["query"]
-
-    result = {"citations": [], "graph_available": False}
-    db = SessionLocal()
-    try:
-        result = answer_global(db, query)
-    except Exception as e:
-        logger.warning(f"Global graph search failed, falling back to tool retrieval: {e}")
-    finally:
-        db.close()
-
-    fallback_used = False
-    if not result.get("graph_available") or not result.get("citations"):
-        evidence = await _invoke_selected_tool(state)
-        fallback_used = True
-    else:
-        evidence = [
-            {
-                "chunk_id": f"community_{c['citation_id']}",
-                "source": c["source"],
-                "content": c["content"],
-                "similarity": 1.0,
-            }
-            for c in result["citations"]
-        ]
-
-    return {
-        "evidence": evidence,
-        "step_count": state.get("step_count", 0) + 1,
-        "llm_call_count": llm_gateway.llm_call_count,
-        "tool_call_count": mcp_client.total_tool_calls,
-        "trace_events": [{
-            "node": "global_search",
-            "fallback_used": fallback_used,
-            "communities_used": result.get("communities_used", 0),
-            "evidence_retrieved": len(evidence)
-        }]
-    }
 
 def evidence_merger_node(state: V2AgentState) -> Dict[str, Any]:
     raw_evidence = state.get("evidence") or []
@@ -365,19 +235,8 @@ def verify_node(state: V2AgentState) -> Dict[str, Any]:
 
 # Route Decisions
 def _retrieval_node_for_strategy(state: V2AgentState) -> str:
-    """
-    Picks which retrieval node handles this query based on the planner's
-    `retrieval_strategy` (point_lookup / exhaustive / relational — see
-    app.agents.planner.PlanOutput), used both for the initial route after
-    planning and for a verifier retry that needs another retrieval pass, so
-    a retry re-runs the SAME strategy rather than always falling back to
-    plain tool retrieval.
-    """
-    strategy = state.get("retrieval_strategy", "point_lookup")
-    if strategy == "exhaustive":
-        return "global_search_node"
-    if strategy == "relational":
-        return "local_search_node"
+    """All retrieval goes through the model-driven tool loop; GraphRAG-lite search is one
+    of the tools the model can choose (find_related, survey_topic)."""
     return "agent_retrieval_node"
 
 def route_after_planner(state: V2AgentState) -> str:
@@ -415,8 +274,6 @@ builder = StateGraph(V2AgentState)
 builder.add_node("load_memory_node", load_memory_node)
 builder.add_node("plan_node", plan_node)
 builder.add_node("agent_retrieval_node", agent_retrieval_node)
-builder.add_node("local_search_node", local_search_node)
-builder.add_node("global_search_node", global_search_node)
 builder.add_node("evidence_merger_node", evidence_merger_node)
 builder.add_node("answer_node", answer_node)
 builder.add_node("verify_node", verify_node)
@@ -427,16 +284,12 @@ builder.add_edge("load_memory_node", "plan_node")
 
 _RETRIEVAL_ROUTE_MAP = {
     "agent_retrieval_node": "agent_retrieval_node",
-    "local_search_node": "local_search_node",
-    "global_search_node": "global_search_node",
     "answer_node": "answer_node",
 }
 
 builder.add_conditional_edges("plan_node", route_after_planner, _RETRIEVAL_ROUTE_MAP)
 
 builder.add_edge("agent_retrieval_node", "evidence_merger_node")
-builder.add_edge("local_search_node", "evidence_merger_node")
-builder.add_edge("global_search_node", "evidence_merger_node")
 builder.add_edge("evidence_merger_node", "answer_node")
 builder.add_edge("answer_node", "verify_node")
 
