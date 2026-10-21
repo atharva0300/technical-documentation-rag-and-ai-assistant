@@ -8,7 +8,8 @@ from app.main import app
 from app.config import settings
 from app.agents.state import V2AgentState
 from app.agents.graph import run_v2_agent_workflow_async, v2_supervisor_graph
-from app.agents.verifier import VerificationResult
+from app.agents.verifier import VerificationResult, UNGROUNDED_REFUSAL
+from app.agents.tool_agent import AgentResult
 from app.mcp.client import mcp_client, CircuitBreakerOpenException
 from app.core.llm_gateway import llm_gateway, LLMBudgetExhaustedError
 
@@ -27,10 +28,12 @@ async def test_verifier_retry_lifecycle():
     retrieve_call_count = 0
     verify_call_count = 0
 
-    async def mock_retrieve_subquestion_async(*args, **kwargs):
+    # Retrieval is the tool-calling agent's job; each verifier RETRY for ungrounded
+    # content sends the graph back into it.
+    async def mock_gather_evidence(*args, **kwargs):
         nonlocal retrieve_call_count
         retrieve_call_count += 1
-        return [{"source": "k8s/pod.md", "content": "Pod lifecycle details", "score": 0.95}]
+        return AgentResult(evidence=[{"chunk_id": 1, "source": "k8s/pod.md", "content": "Pod lifecycle details", "score": 0.95}])
 
     def mock_verify(*args, **kwargs):
         nonlocal verify_call_count
@@ -50,7 +53,7 @@ async def test_verifier_retry_lifecycle():
                 feedback="All claims grounded."
             )
 
-    with patch("app.agents.retriever.RetrievalAgent.retrieve_subquestion_async", side_effect=mock_retrieve_subquestion_async), \
+    with patch("app.agents.graph.ToolCallingAgent.gather_evidence", side_effect=mock_gather_evidence), \
          patch("app.agents.verifier.VerifierAgent.verify", side_effect=mock_verify), \
          patch("app.core.llm_gateway.llm_gateway.generate", return_value="Draft answer text"):
 
@@ -68,7 +71,8 @@ async def test_verifier_retry_exhaustion():
     """
     TEST 2 — retry exhaustion:
     Always return RETRY.
-    Assert: retry count never exceeds MAX_RETRIES, graph terminates, no infinite loop.
+    Assert: retry count never exceeds MAX_RETRIES, graph terminates, no infinite loop, and
+    the never-verified draft is refused rather than returned.
     """
     mcp_client.reset_tool_call_count()
     llm_gateway.reset_call_count()
@@ -76,10 +80,10 @@ async def test_verifier_retry_exhaustion():
 
     retrieve_call_count = 0
 
-    async def mock_retrieve_subquestion_async(*args, **kwargs):
+    async def mock_gather_evidence(*args, **kwargs):
         nonlocal retrieve_call_count
         retrieve_call_count += 1
-        return [{"source": "k8s/pod.md", "content": "Pod details", "score": 0.8}]
+        return AgentResult(evidence=[{"chunk_id": 1, "source": "k8s/pod.md", "content": "Pod details", "score": 0.8}])
 
     def mock_verify_always_retry(*args, **kwargs):
         return VerificationResult(
@@ -89,14 +93,15 @@ async def test_verifier_retry_exhaustion():
             feedback="Needs more citations"
         )
 
-    with patch("app.agents.retriever.RetrievalAgent.retrieve_subquestion_async", side_effect=mock_retrieve_subquestion_async), \
+    with patch("app.agents.graph.ToolCallingAgent.gather_evidence", side_effect=mock_gather_evidence), \
          patch("app.agents.verifier.VerifierAgent.verify", side_effect=mock_verify_always_retry), \
          patch("app.core.llm_gateway.llm_gateway.generate", return_value="Unverified draft"):
 
         res = await run_v2_agent_workflow_async(query="What is a Pod?")
 
     assert res["retry_count"] <= settings.MAX_RETRIES
-    assert res["verification_status"] == "RETRY"
+    assert res["verification_status"] == "REFUSE"
+    assert res["answer"] == UNGROUNDED_REFUSAL
     assert retrieve_call_count == 2
 
 
