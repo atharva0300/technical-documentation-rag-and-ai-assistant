@@ -5,7 +5,7 @@ import time
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -17,6 +17,16 @@ logger = logging.getLogger("mcp_server")
 mcp = MCPServer("TechnicalDocumentationServer")
 
 
+class SearchFilters(BaseModel):
+    """Exact filters applied before ranking (see app/retrieval/dense.py and bm25.py)."""
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str | None = Field(None, description="Only search this document (an id from list_documents).")
+    source: str | None = Field(None, description="Only search the document at this source path.")
+    section: str | None = Field(None, description="Only passages whose section heading contains this text, e.g. '9.8 Spring Validation'.")
+    updated_after: str | None = Field(None, description="Only documents updated after this ISO date.")
+
+
 @mcp.tool()
 def search_documentation(
     query: Annotated[str, Field(description=(
@@ -24,16 +34,19 @@ def search_documentation(
         "'Spring declarative transaction management @Transactional example'."
     ))],
     top_k: Annotated[int, Field(description="How many passages to return (3-8).")] = 5,
-    filters: Annotated[dict | None, Field(description=(
-        "Optional exact filters: document_id, source, section (substring of a section "
-        "heading, e.g. '9.8 Spring Validation'), updated_after (ISO date). Leave empty "
-        "unless the question names a specific document or section."
+    filters: Annotated[SearchFilters | None, Field(description=(
+        "Optional exact filters. Leave empty unless the question names a specific "
+        "document or section."
     ))] = None,
 ) -> str:
     """Search the indexed technical documentation (hybrid semantic + keyword search with
     reranking). Returns the most relevant passages, each with its section heading, page,
     document_id and chunk_id. Use for any question about what the documentation says."""
-    return tool_search_documentation(query=query, top_k=top_k, filters=filters)
+    return tool_search_documentation(
+        query=query,
+        top_k=top_k,
+        filters=filters.model_dump(exclude_none=True) if filters else None,
+    )
 
 
 class AuthMiddleware:

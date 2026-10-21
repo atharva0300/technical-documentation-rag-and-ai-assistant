@@ -70,8 +70,9 @@ class Settings(BaseSettings):
     # to be as repeatable as the model allows; answer generation keeps the model defaults.
     AGENT_TEMPERATURE: float = float(os.getenv("AGENT_TEMPERATURE", "0"))
     AGENT_SEED: int = int(os.getenv("AGENT_SEED", "42"))
-    # Tool-call turns only need a tool call or a short "done" note.
-    AGENT_NUM_PREDICT: int = int(os.getenv("AGENT_NUM_PREDICT", "160"))
+    # Tool-call turns only need a tool call (~30-90 tokens of arguments) or a short
+    # "done" note; the cap stops qwen2.5:3b from drafting a whole answer when it stops.
+    AGENT_NUM_PREDICT: int = int(os.getenv("AGENT_NUM_PREDICT", "96"))
     # Bounds applied to the model's own top_k argument.
     AGENT_MIN_TOP_K: int = int(os.getenv("AGENT_MIN_TOP_K", "3"))
     AGENT_MAX_TOP_K: int = int(os.getenv("AGENT_MAX_TOP_K", "8"))

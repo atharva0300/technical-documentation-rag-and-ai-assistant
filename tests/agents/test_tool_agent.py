@@ -237,3 +237,31 @@ async def test_gateway_passes_tools_and_sampling_options_to_ollama(monkeypatch):
     assert kwargs["options"]["num_predict"] == 50
     assert reply["tool_calls"] == [{"name": "search_documentation", "arguments": {"query": "x"}}]
     llm_gateway.reset_call_count()
+
+
+@pytest.mark.asyncio
+async def test_unknown_arguments_are_rejected_so_the_model_rewrites_the_call(monkeypatch, fake_mcp, fallback):
+    model = ScriptedModel([
+        {"content": "", "tool_calls": [_call("search_documentation", object="DataBinder", query="configuration")]},
+        {"content": "", "tool_calls": [_call("search_documentation", query="configure a DataBinder")]},
+        {"content": "Done.", "tool_calls": []},
+    ])
+    monkeypatch.setattr(tool_agent.llm_gateway, "achat_with_tools", model)
+
+    await ToolCallingAgent.gather_evidence("how to configure a DataBinder", retrieval_expected=True)
+
+    assert fake_mcp == [("search_documentation", {"query": "configure a DataBinder"})]
+    assert "unknown argument(s) ['object']" in model.calls[1]["messages"][-1]["content"]
+
+
+def test_tool_schemas_are_inlined_for_the_model():
+    from app.mcp.client import to_ollama_tools
+    manifest = [{"name": "search_documentation", "description": "d", "input_schema": {
+        "type": "object",
+        "$defs": {"Filters": {"type": "object", "properties": {"section": {"type": "string"}}}},
+        "properties": {"query": {"type": "string"},
+                       "filters": {"anyOf": [{"$ref": "#/$defs/Filters"}, {"type": "null"}]}},
+    }}]
+    params = to_ollama_tools(manifest)[0]["function"]["parameters"]
+    assert "$defs" not in params
+    assert params["properties"]["filters"]["anyOf"][0]["properties"] == {"section": {"type": "string"}}

@@ -79,6 +79,14 @@ def _validate_call(
         if properties.get(key, {}).get("type") == "integer" and isinstance(value, str) and value.strip().isdigit():
             arguments[key] = int(value)
 
+    unknown = sorted(set(arguments) - set(properties))
+    if properties and unknown:
+        # The MCP schema may not forbid extra keys, but the tool would silently ignore
+        # them -- e.g. {"object": "DataBinder", "query": "configuration"} drops the subject.
+        return None, (f"Invalid arguments for '{name}': unknown argument(s) {unknown}. "
+                      f"Allowed arguments: {sorted(properties)}. Put all search terms in the "
+                      "query text.")
+
     try:
         jsonschema.validate(arguments, schema)
     except jsonschema.ValidationError as e:

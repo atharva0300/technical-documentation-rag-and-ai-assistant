@@ -284,6 +284,22 @@ def tool_accepts_field(tool: Dict[str, Any], field_name: str) -> bool:
     return field_name in properties
 
 
+def _inline_refs(schema: Any, defs: Optional[Dict[str, Any]] = None) -> Any:
+    """Replaces local "$ref": "#/$defs/X" pointers with the definitions themselves, so the
+    model sees each parameter's full shape in place (small models don't follow $refs)."""
+    if isinstance(schema, dict):
+        defs = defs if defs is not None else schema.get("$defs", {})
+        ref = schema.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            target = defs.get(ref.split("/")[-1], {})
+            merged = {**target, **{k: v for k, v in schema.items() if k != "$ref"}}
+            return _inline_refs(merged, defs)
+        return {k: _inline_refs(v, defs) for k, v in schema.items() if k != "$defs"}
+    if isinstance(schema, list):
+        return [_inline_refs(item, defs) for item in schema]
+    return schema
+
+
 def to_ollama_tools(manifest: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Converts the live MCP tool manifest into the function-tool format Ollama's chat
@@ -295,7 +311,7 @@ def to_ollama_tools(manifest: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         name = tool.get("name")
         if not name:
             continue
-        schema = tool.get("input_schema") or {"type": "object", "properties": {}}
+        schema = _inline_refs(tool.get("input_schema") or {"type": "object", "properties": {}})
         tools.append({
             "type": "function",
             "function": {
