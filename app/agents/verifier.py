@@ -4,6 +4,10 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+_CODE_BLOCK = re.compile(r'```.*?```', re.DOTALL)
+# Share of a code block's identifiers that must appear in the evidence for it to be kept.
+CODE_GROUNDING_MIN_RATIO = 0.6
+
 # Returned instead of an answer that still can't be tied to any cited evidence once
 # retries are exhausted -- an uncited answer at that point is most likely made up.
 UNGROUNDED_REFUSAL = (
@@ -177,12 +181,27 @@ class VerifierAgent:
                 feedback="No valid citations after exhausting retries; refusing an ungrounded answer."
             )
 
-        # Layer 2 & 3: per-citation technical token grounding + NLI entailment
-        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', answer) if s.strip()]
+        # Layer 2 & 3: per-citation technical token grounding + NLI entailment.
+        # Fenced code blocks are checked as whole units: splitting them on "." would cut
+        # code into fragments, and removing one fragment leaves broken code behind.
+        code_blocks = _CODE_BLOCK.findall(answer)
+        prose = _CODE_BLOCK.sub("\n", answer)
+        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', prose) if s.strip()]
         valid_sentences = []
         unsupported_sentences = []
 
         full_evidence_text = " ".join([doc.get("content", "") for doc in evidence]).lower()
+
+        for block in code_blocks:
+            # Code rarely carries a citation, so check it against all the evidence: most of
+            # its identifiers (dotted names, camelCase) must actually appear there, or the
+            # code was made up.
+            tech_tokens = cls.TECHNICAL_TOKEN_REGEX.findall(block)
+            grounded = [t for t in tech_tokens if t.lower() in full_evidence_text]
+            if tech_tokens and len(grounded) / len(tech_tokens) < CODE_GROUNDING_MIN_RATIO:
+                unsupported_sentences.append(block)
+            else:
+                valid_sentences.append(block)
 
         for sentence in sentences:
             cited_text = cls._cited_evidence_text(sentence, evidence, full_evidence_text)

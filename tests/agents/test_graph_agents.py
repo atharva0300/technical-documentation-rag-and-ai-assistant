@@ -150,3 +150,26 @@ def test_workflow_refuses_when_graph_stops_before_verification(monkeypatch):
     res = run_v2_agent_workflow("how to configure a databinder ?", conversation_id="test_stop_before_verify")
     assert res["verification_status"] == "REFUSE"
     assert res["answer"] == UNGROUNDED_REFUSAL
+
+
+def test_verifier_keeps_grounded_code_block_whole():
+    evidence = [{"content": "@Configuration @EnableLoadTimeWeaving public class AppConfig { } "
+                            "The LoadTimeWeaver is used by Spring to dynamically transform classes."}]
+    answer = ("The LoadTimeWeaver transforms classes as they load [1].\n\n"
+              "```java\n@Configuration\n@EnableLoadTimeWeaving\npublic class AppConfig {\n}\n```\n\n"
+              "Set the flag --fake-flag too [1].")
+    res = VerifierAgent.verify(answer=answer, evidence=evidence, retry_count=0, max_retries=2)
+    assert res.status == "PARTIAL"
+    assert "```java\n@Configuration\n@EnableLoadTimeWeaving\npublic class AppConfig {\n}\n```" in res.cleaned_answer
+    assert "--fake-flag" not in res.cleaned_answer
+
+
+def test_verifier_removes_invented_code_block_whole():
+    evidence = [{"content": "The LoadTimeWeaver is used by Spring to dynamically transform classes."}]
+    answer = ("Use this [1].\n\n```java\nDataBinder binder = fooService.buildBinder();\n"
+              "binder.addFancyValidators(myRegistry.lookupAll());\n```\n\n"
+              "The LoadTimeWeaver transforms classes [1].")
+    res = VerifierAgent.verify(answer=answer, evidence=evidence, retry_count=0, max_retries=2)
+    assert "```" not in res.cleaned_answer
+    assert "addFancyValidators" not in res.cleaned_answer
+    assert "The LoadTimeWeaver transforms classes [1]." in res.cleaned_answer
