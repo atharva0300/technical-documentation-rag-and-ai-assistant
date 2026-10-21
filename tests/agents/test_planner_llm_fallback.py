@@ -1,30 +1,31 @@
-import json
 import pytest
 from app.agents.planner import PlannerAgent, PlanOutput
 
-def test_planner_bare_and_uses_llm_fallback():
+def test_planner_defers_unconfident_queries_to_tool_calling_agent(monkeypatch):
     """
-    Test that queries containing bare 'and' (e.g. 'configure a volume in Kubernetes and PostgreSQL')
-    do NOT trigger the naive regex comparison fast-path (which split on bare 'and'),
-    and instead route to the LLM path producing the correct classification.
+    The planner has no LLM classification tier any more: when the semantic router
+    isn't confident, the query goes to retrieval via the tool-calling agent, which
+    decides what to call. router_category stays None so the agent won't force a
+    fallback search if the model chooses not to retrieve.
     """
+    monkeypatch.setattr("app.retrieval.semantic_router.route_query", lambda q: (None, 0.31))
     query = "configure a volume in Kubernetes and PostgreSQL"
+    plan = PlannerAgent.plan(query, available_tools=[])
 
-    def mock_llm_fn(user_query: str, system: str) -> str:
-        assert user_query == query
-        return json.dumps({
-            "intent": "single_lookup",
-            "needs_retrieval": True,
-            "needs_tools": False,
-            "sub_questions": [query],
-            "reasoning": "Determined by LLM fallback that query is a single lookup despite bare word 'and'."
-        })
-
-    plan = PlannerAgent.plan(query, llm_fn=mock_llm_fn)
     assert plan.intent == "single_lookup"
+    assert plan.retrieval_strategy == "point_lookup"
+    assert plan.needs_retrieval is True
+    assert plan.router_category is None
     assert plan.sub_questions == [query]
-    assert "LLM Classification" in plan.reasoning
-    assert "single lookup despite bare word 'and'" in plan.reasoning
+    assert "tool-calling agent" in plan.reasoning
+
+
+def test_planner_short_circuits_chitchat(monkeypatch):
+    monkeypatch.setattr("app.retrieval.semantic_router.route_query", lambda q: ("chitchat", 0.97))
+    plan = PlannerAgent.plan("hello there", available_tools=[])
+    assert plan.intent == "chitchat"
+    assert plan.needs_retrieval is False
+
 
 def test_planner_unambiguous_comparison_fast_path():
     """

@@ -56,10 +56,25 @@ class Settings(BaseSettings):
 
     # Agent Execution Budgets
     MAX_AGENT_STEPS: int = int(os.getenv("MAX_AGENT_STEPS", "15"))
-    MAX_LLM_CALLS: int = int(os.getenv("MAX_LLM_CALLS", "6"))
+    # The tool-calling retrieval loop (app/agents/tool_agent.py) uses up to
+    # AGENT_MAX_TOOL_ROUNDS calls on top of answer generation and verifier retries.
+    MAX_LLM_CALLS: int = int(os.getenv("MAX_LLM_CALLS", "8"))
     MAX_SUB_QUESTIONS: int = 3
     MAX_RETRIES: int = 2
     MAX_TOOL_CALLS: int = 5
+
+    # Tool-calling retrieval loop (app/agents/tool_agent.py). The model decides whether
+    # and what to search via Ollama's native tool calling; these bound and steady it.
+    AGENT_MAX_TOOL_ROUNDS: int = int(os.getenv("AGENT_MAX_TOOL_ROUNDS", "3"))
+    # Tool selection is a control decision, so it runs greedy (temperature 0, fixed seed)
+    # to be as repeatable as the model allows; answer generation keeps the model defaults.
+    AGENT_TEMPERATURE: float = float(os.getenv("AGENT_TEMPERATURE", "0"))
+    AGENT_SEED: int = int(os.getenv("AGENT_SEED", "42"))
+    # Tool-call turns only need a tool call or a short "done" note.
+    AGENT_NUM_PREDICT: int = int(os.getenv("AGENT_NUM_PREDICT", "160"))
+    # Bounds applied to the model's own top_k argument.
+    AGENT_MIN_TOP_K: int = int(os.getenv("AGENT_MIN_TOP_K", "3"))
+    AGENT_MAX_TOP_K: int = int(os.getenv("AGENT_MAX_TOP_K", "8"))
     MEMORY_TURNS: int = 5
 
     class Config:

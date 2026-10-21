@@ -2,8 +2,10 @@ import logging
 import os
 import threading
 import time
+from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
+from pydantic import Field
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -17,11 +19,20 @@ mcp = MCPServer("TechnicalDocumentationServer")
 
 @mcp.tool()
 def search_documentation(
-    query: str,
-    top_k: int = 5,
-    filters: dict | None = None,
+    query: Annotated[str, Field(description=(
+        "A focused, self-contained search query with the key technical terms, e.g. "
+        "'Spring declarative transaction management @Transactional example'."
+    ))],
+    top_k: Annotated[int, Field(description="How many passages to return (3-8).")] = 5,
+    filters: Annotated[dict | None, Field(description=(
+        "Optional exact filters: document_id, source, section (substring of a section "
+        "heading, e.g. '9.8 Spring Validation'), updated_after (ISO date). Leave empty "
+        "unless the question names a specific document or section."
+    ))] = None,
 ) -> str:
-    """Search technical documentation using hybrid retrieval and reranking."""
+    """Search the indexed technical documentation (hybrid semantic + keyword search with
+    reranking). Returns the most relevant passages, each with its section heading, page,
+    document_id and chunk_id. Use for any question about what the documentation says."""
     return tool_search_documentation(query=query, top_k=top_k, filters=filters)
 
 

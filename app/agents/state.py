@@ -10,6 +10,7 @@ class V2AgentState(TypedDict):
     
     intent: Optional[str]  # single_lookup, multi_hop, comparison, chitchat, out_of_scope
     retrieval_strategy: Optional[str]  # point_lookup, exhaustive, relational (see app/graph/)
+    router_category: Optional[str]  # semantic router's confident category, None if not confident
     needs_retrieval: bool
     needs_tools: bool
     selected_tool: Optional[str]

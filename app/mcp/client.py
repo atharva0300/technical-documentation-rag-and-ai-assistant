@@ -284,4 +284,27 @@ def tool_accepts_field(tool: Dict[str, Any], field_name: str) -> bool:
     return field_name in properties
 
 
+def to_ollama_tools(manifest: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Converts the live MCP tool manifest into the function-tool format Ollama's chat
+    API takes (`tools=[...]`, the OpenAI-compatible shape). The MCP input schema is
+    already JSON Schema, so it is passed through as the function's parameters.
+    """
+    tools = []
+    for tool in manifest:
+        name = tool.get("name")
+        if not name:
+            continue
+        schema = tool.get("input_schema") or {"type": "object", "properties": {}}
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": tool.get("description", ""),
+                "parameters": schema,
+            },
+        })
+    return tools
+
+
 mcp_client = MCPClient()

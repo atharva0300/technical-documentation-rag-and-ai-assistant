@@ -9,6 +9,7 @@ from app.agents.analysis import EvidenceMerger
 from app.agents.answerer import AnswererAgent
 from app.agents.verifier import VerifierAgent, UNGROUNDED_REFUSAL
 from app.agents.memory import MemoryLoader
+from app.agents.tool_agent import ToolCallingAgent
 from app.mcp.client import mcp_client
 from app.core.llm_gateway import llm_gateway
 from app.config import settings
@@ -49,6 +50,7 @@ def plan_node(state: V2AgentState) -> Dict[str, Any]:
     return {
         "intent": plan.intent,
         "retrieval_strategy": plan.retrieval_strategy,
+        "router_category": plan.router_category,
         "needs_retrieval": plan.needs_retrieval,
         "needs_tools": plan.needs_tools,
         "selected_tool": plan.selected_tool,
@@ -74,11 +76,9 @@ async def _invoke_selected_tool(state: V2AgentState) -> List[Dict[str, Any]]:
     Shared retrieval helper: calls whatever tool the planner selected
     (`state["selected_tool"]`, resolved generically against the live MCP
     tool manifest -- see app.agents.planner) once per sub-question. This is
-    the one place tool invocation actually happens, used by the plain
-    point-lookup path (`invoke_tools_node`) AND as the fallback for
-    local/global graph search when the knowledge graph has nothing useful
-    for a given query -- so there's exactly one code path that calls an MCP
-    tool, and it never hardcodes which one.
+    the fallback for local/global graph search when the knowledge graph has
+    nothing useful for a given query. (Ordinary questions go through the
+    model-driven tool-calling loop in `agent_retrieval_node` instead.)
     """
     sub_questions = state.get("sub_questions") or [state.get("rewritten_query") or state["query"]]
     sub_questions = sub_questions[:settings.MAX_SUB_QUESTIONS]
@@ -111,49 +111,45 @@ async def _invoke_selected_tool(state: V2AgentState) -> List[Dict[str, Any]]:
         all_evidence.extend(results)
     return all_evidence
 
-async def invoke_tools_node(state: V2AgentState) -> Dict[str, Any]:
+# Router categories that mean "this clearly needs the documentation". Used only to decide
+# whether the tool-calling agent falls back to a plain search when the model makes no
+# valid tool call -- never to choose a tool.
+_RETRIEVAL_CATEGORIES = {"point_lookup", "comparison", "multi_hop", "exhaustive", "relational"}
+
+
+async def agent_retrieval_node(state: V2AgentState) -> Dict[str, Any]:
     """
-    Generic tool-invocation node for the "point_lookup" retrieval strategy
-    (the common case). Replaces the old `mcp_executor_node` + `retrieve_node`
-    pair, which had two independent paths to the same tool: one gated by the
-    planner's `needs_tools` decision, and one (`RetrievalAgent`) that called
-    `search_documentation` unconditionally regardless of what the planner
-    decided -- that unconditional call was the actual deterministic-calling
-    bug. Now there is exactly one call path (`_invoke_selected_tool`), and it
-    only runs when `needs_retrieval` is true and the planner (or its
-    structural fast-path resolution) actually selected a tool.
+    Model-driven retrieval: the LLM chooses which MCP tools to call, with its own
+    arguments, over a bounded loop (see app/agents/tool_agent.py). Replaces the
+    planner-selected single tool call for the common "point_lookup" path, and is
+    re-entered on a verifier RETRY for ungrounded content, with the verifier's
+    feedback, so the model can search differently.
     """
     retry_count = state.get("retry_count", 0)
-    needs_retrieval = state.get("needs_retrieval", True)
+    question = state.get("rewritten_query") or state["query"]
+    feedback = state.get("verification_feedback") if retry_count > 0 else None
 
-    # `evidence` is a plain (non-accumulating) state field — see app/agents/state.py.
-    # On a verifier retry, evidence starts from a clean slate instead of piling new
-    # results onto stale ones from the rejected attempt (which also shifted citation
-    # numbering between attempts — see the audit's Mistake #2).
-    carried_evidence = (state.get("evidence") or []) if retry_count == 0 else []
-
-    new_evidence = []
-    error_msg = None
-    if needs_retrieval:
-        new_evidence = await _invoke_selected_tool(state)
-        if not state.get("selected_tool"):
-            error_msg = "Retrieval was needed but no MCP tool currently matches (live tool manifest had no query-accepting tool)."
-
-    all_evidence = list(carried_evidence) + new_evidence
+    result = await ToolCallingAgent.gather_evidence(
+        question=question,
+        retrieval_expected=state.get("router_category") in _RETRIEVAL_CATEGORIES,
+        feedback=feedback,
+    )
 
     return {
-        "evidence": all_evidence,
+        "evidence": result.evidence,
         "tool_call_count": mcp_client.total_tool_calls,
         "llm_call_count": llm_gateway.llm_call_count,
         "step_count": state.get("step_count", 0) + 1,
-        "error": error_msg,
+        "error": result.fallback_reason if result.used_fallback else None,
         "trace_events": [{
-            "node": "invoke_tools",
-            "selected_tool": state.get("selected_tool"),
-            "evidence_retrieved": len(all_evidence),
-            "error": error_msg
+            "node": "agent_retrieval",
+            "evidence_retrieved": len(result.evidence),
+            "used_fallback": result.used_fallback,
+            "fallback_reason": result.fallback_reason,
+            "steps": result.trace,
         }]
     }
+
 
 async def local_search_node(state: V2AgentState) -> Dict[str, Any]:
     """
@@ -291,8 +287,9 @@ async def answer_node(state: V2AgentState) -> Dict[str, Any]:
             "trace_events": [{"node": "answerer", "status": "out_of_scope"}]
         }
 
-    # Raw query is primary semantic source of truth for response generation
-    query_text = state["query"]
+    # The standalone question (references to earlier turns resolved by the memory step),
+    # so the answer addresses what was actually asked in context.
+    query_text = state.get("rewritten_query") or state["query"]
     evidence = state.get("citations") or state.get("evidence") or []
 
     # Only the FIRST attempt streams live. A verifier RETRY regenerates (same evidence, on a
@@ -381,7 +378,7 @@ def _retrieval_node_for_strategy(state: V2AgentState) -> str:
         return "global_search_node"
     if strategy == "relational":
         return "local_search_node"
-    return "invoke_tools_node"
+    return "agent_retrieval_node"
 
 def route_after_planner(state: V2AgentState) -> str:
     intent = state.get("intent")
@@ -417,7 +414,7 @@ builder = StateGraph(V2AgentState)
 
 builder.add_node("load_memory_node", load_memory_node)
 builder.add_node("plan_node", plan_node)
-builder.add_node("invoke_tools_node", invoke_tools_node)
+builder.add_node("agent_retrieval_node", agent_retrieval_node)
 builder.add_node("local_search_node", local_search_node)
 builder.add_node("global_search_node", global_search_node)
 builder.add_node("evidence_merger_node", evidence_merger_node)
@@ -429,7 +426,7 @@ builder.set_entry_point("load_memory_node")
 builder.add_edge("load_memory_node", "plan_node")
 
 _RETRIEVAL_ROUTE_MAP = {
-    "invoke_tools_node": "invoke_tools_node",
+    "agent_retrieval_node": "agent_retrieval_node",
     "local_search_node": "local_search_node",
     "global_search_node": "global_search_node",
     "answer_node": "answer_node",
@@ -437,7 +434,7 @@ _RETRIEVAL_ROUTE_MAP = {
 
 builder.add_conditional_edges("plan_node", route_after_planner, _RETRIEVAL_ROUTE_MAP)
 
-builder.add_edge("invoke_tools_node", "evidence_merger_node")
+builder.add_edge("agent_retrieval_node", "evidence_merger_node")
 builder.add_edge("local_search_node", "evidence_merger_node")
 builder.add_edge("global_search_node", "evidence_merger_node")
 builder.add_edge("evidence_merger_node", "answer_node")
@@ -464,6 +461,7 @@ async def run_v2_agent_workflow_async(
         "history": [],
         "intent": None,
         "retrieval_strategy": "point_lookup",
+        "router_category": None,
         "needs_retrieval": True,
         "needs_tools": False,
         "selected_tool": None,

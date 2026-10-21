@@ -1,7 +1,7 @@
 import os
 import logging
 import contextvars
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 import ollama
 from app.config import settings
 
@@ -98,5 +98,52 @@ class LLMGateway:
                 raise
             logger.warning(f"Ollama streaming failed: {e}")
             raise OllamaUnavailableError(f"Ollama streaming error: {e}") from e
+
+    async def achat_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        temperature: Optional[float] = None,
+        seed: Optional[int] = None,
+        num_predict: Optional[int] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        One chat turn with native tool calling (Ollama's `tools` parameter). Returns the
+        assistant message as {"content": str, "tool_calls": [{"name": str, "arguments": dict}]}.
+        Counts against the same per-request LLM budget as generate()/astream().
+        """
+        current_calls = _llm_call_count_var.get()
+        if current_calls >= settings.MAX_LLM_CALLS:
+            raise LLMBudgetExhaustedError(
+                f"LLM Call Budget Exhausted: {current_calls} calls made (Max limit: {settings.MAX_LLM_CALLS})"
+            )
+
+        _llm_call_count_var.set(current_calls + 1)
+        options: Dict[str, Any] = {"num_ctx": self.num_ctx}
+        if temperature is not None:
+            options["temperature"] = temperature
+        if seed is not None:
+            options["seed"] = seed
+        if num_predict is not None:
+            options["num_predict"] = num_predict
+
+        try:
+            response = await self.async_client.chat(
+                model=model or self.default_model, messages=messages, tools=tools, options=options
+            )
+        except Exception as e:
+            logger.warning(f"Ollama tool-calling chat failed: {e}")
+            raise OllamaUnavailableError(f"Ollama service error: {e}") from e
+
+        message = response.get("message", {}) or {}
+        tool_calls = []
+        for call in message.get("tool_calls") or []:
+            function = call.get("function", {}) or {}
+            tool_calls.append({
+                "name": function.get("name"),
+                "arguments": dict(function.get("arguments") or {}),
+            })
+        return {"content": (message.get("content") or "").strip(), "tool_calls": tool_calls}
 
 llm_gateway = LLMGateway()
