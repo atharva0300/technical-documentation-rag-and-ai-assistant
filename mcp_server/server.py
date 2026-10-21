@@ -11,7 +11,12 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from mcp_server.tools.documentation import tool_search_documentation, tool_search_code_examples
 from mcp_server.tools.graph_tools import tool_find_related, tool_survey_topic
-from mcp_server.tools.navigation import tool_get_section, tool_get_table_of_contents, tool_list_documents
+from mcp_server.tools.navigation import (
+    tool_expand_passage,
+    tool_get_section,
+    tool_get_table_of_contents,
+    tool_list_documents,
+)
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("mcp_server")
@@ -32,8 +37,7 @@ class SearchFilters(BaseModel):
 @mcp.tool()
 def search_documentation(
     query: Annotated[str, Field(description=(
-        "A focused, self-contained search query with the key technical terms, e.g. "
-        "'Spring declarative transaction management @Transactional example'."
+        "A focused, self-contained search query containing the key technical terms from the question."
     ))],
     top_k: Annotated[int, Field(description="How many passages to return (3-8).")] = 5,
     filters: Annotated[SearchFilters | None, Field(description=(
@@ -55,8 +59,7 @@ def search_documentation(
 @mcp.tool()
 def search_code_examples(
     query: Annotated[str, Field(description=(
-        "What the code should show, with the key class/annotation names, e.g. "
-        "'DataBinder validator bind example' or '@Transactional rollback configuration'."
+        "What the code should show, including the class, annotation or element names from the question."
     ))],
     language: Annotated[Literal["java", "xml"] | None, Field(description=(
         "Only return code in this language: 'java' (classes, annotations) or 'xml' "
@@ -71,20 +74,28 @@ def search_code_examples(
 
 @mcp.tool()
 def get_section(
-    document_id: Annotated[str, Field(description="The document_id from a search result or list_documents.")],
-    section: Annotated[str | None, Field(description=(
-        "A section heading to return in full, e.g. '7.14 Registering a LoadTimeWeaver' "
-        "(from a search result's section or the table of contents)."
+    section: Annotated[str, Field(description=(
+        "The section heading, in the form '<number> <title>' as shown in a search result's "
+        "section or the table of contents."
+    ))],
+    document_id: Annotated[str | None, Field(description=(
+        "Only needed when several documents are indexed: the document_id from list_documents."
     ))] = None,
-    chunk_id: Annotated[int | None, Field(description=(
-        "A chunk_id from a search result; returns that passage with its neighbours in reading order."
-    ))] = None,
-    window: Annotated[int, Field(description="With chunk_id: how many neighbouring passages on each side (0-5).")] = 2,
 ) -> str:
-    """Return the full text of a section, or a passage together with the passages around
-    it, in reading order. Use when a search result is cut off (an unfinished code sample,
-    list or explanation) or the question needs the whole section."""
-    return tool_get_section(document_id=document_id, section=section, chunk_id=chunk_id, window=window)
+    """Return the full text of one section, from its heading to where the next section
+    starts. Use when the question needs a whole section, or a search result from that
+    section is cut off mid-explanation, mid-list or mid-code-sample."""
+    return tool_get_section(section=section, document_id=document_id)
+
+
+@mcp.tool()
+def expand_passage(
+    chunk_id: Annotated[int, Field(description="The numeric chunk_id of a passage from a search result.")],
+    window: Annotated[int, Field(description="How many neighbouring passages to add on each side (0-5).")] = 2,
+) -> str:
+    """Return a passage together with the passages just before and after it, in reading
+    order. Use when a search result looks cut off and you want its surrounding text."""
+    return tool_expand_passage(chunk_id=chunk_id, window=window)
 
 
 @mcp.tool()
@@ -96,10 +107,12 @@ def list_documents() -> str:
 
 @mcp.tool()
 def get_table_of_contents(
-    document_id: Annotated[str, Field(description="The document_id (from list_documents or a search result).")],
+    document_id: Annotated[str | None, Field(description=(
+        "Only needed when several documents are indexed: the document_id from list_documents."
+    ))] = None,
     under: Annotated[str | None, Field(description=(
-        "Only headings under this section number ('9' or '9.8') or containing this word "
-        "('validation'). Leave empty for the whole document (long documents are truncated)."
+        "Only headings under this chapter/section number (e.g. '9' for chapter 9) or "
+        "containing this word. Leave empty for the whole document (long documents are truncated)."
     ))] = None,
 ) -> str:
     """Return a document's section headings with page numbers. Use when the user asks what a
@@ -110,7 +123,7 @@ def get_table_of_contents(
 @mcp.tool()
 def find_related(
     entity: Annotated[str, Field(description=(
-        "The component, class or concept to find connections for, e.g. 'PlatformTransactionManager'."
+        "The component, class or concept from the question to find connections for."
     ))],
     top_k: Annotated[int, Field(description="How many passages to return (3-8).")] = 5,
 ) -> str:
@@ -123,7 +136,7 @@ def find_related(
 
 @mcp.tool()
 def survey_topic(
-    topic: Annotated[str, Field(description="The topic to survey across the whole corpus, e.g. 'transaction management'.")],
+    topic: Annotated[str, Field(description="The topic from the question to survey across the whole corpus.")],
     max_communities: Annotated[int, Field(description="How many topic overviews to return (1-8).")] = 5,
 ) -> str:
     """Return corpus-wide overviews of a topic: summaries of the clusters of related passages

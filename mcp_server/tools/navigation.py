@@ -33,6 +33,24 @@ def _heading_and_page(section: Optional[str]):
     return section, None
 
 
+def _resolve_document(db, document_id: Optional[str]):
+    """Returns (document, None) or (None, error). With a single indexed document, that
+    document is used whenever document_id is missing or unrecognised (callers often pass
+    a chapter number or a made-up id). Otherwise errors list the valid ids so the caller
+    can retry correctly."""
+    if document_id:
+        doc = db.query(Document).filter(Document.document_id == document_id).first()
+        if doc is not None:
+            return doc, None
+    docs = db.query(Document).order_by(Document.title).all()
+    if len(docs) == 1:
+        return docs[0], None
+    valid = ", ".join(f"{d.document_id} ({d.title})" for d in docs) or "none indexed"
+    if document_id:
+        return None, f"No document with id '{document_id}'. Valid document_id values: {valid}."
+    return None, f"Several documents are indexed; pass a document_id. Valid document_id values: {valid}."
+
+
 def _passage(chunk: Chunk, doc: Document) -> Dict[str, Any]:
     return {
         "chunk_id": chunk.id,
@@ -139,12 +157,12 @@ def tool_list_documents() -> str:
         db.close()
 
 
-def tool_get_table_of_contents(document_id: str, under: Optional[str] = None) -> str:
+def tool_get_table_of_contents(document_id: Optional[str] = None, under: Optional[str] = None) -> str:
     db = SessionLocal()
     try:
-        doc = db.query(Document).filter(Document.document_id == document_id).first()
-        if doc is None:
-            return json.dumps({"error": f"No document with id '{document_id}'. Call list_documents for valid ids."})
+        doc, error = _resolve_document(db, document_id)
+        if error:
+            return json.dumps({"error": error})
 
         # Read headings from the document text rather than chunk labels: a chunk is labelled
         # by the section it starts in, so a short section that starts mid-chunk has no label.
@@ -193,47 +211,52 @@ def tool_get_table_of_contents(document_id: str, under: Optional[str] = None) ->
         db.close()
 
 
-def tool_get_section(
-    document_id: str,
-    section: Optional[str] = None,
-    chunk_id: Optional[int] = None,
-    window: int = 2,
-) -> str:
-    if section is None and chunk_id is None:
-        return json.dumps({"error": "Pass either `section` (a heading) or `chunk_id` (from a search result)."})
+def _render_passages(selected: List[Tuple[Chunk, str]], doc: Document) -> str:
+    passages, total = [], 0
+    for chunk, text in selected[:MAX_SECTION_CHUNKS]:
+        total += len(text)
+        if passages and total > MAX_SECTION_CHARS:
+            break
+        passages.append({**_passage(chunk, doc), "content": text})
+    return json.dumps({"passages": passages, "truncated": len(passages) < len(selected)})
 
+
+def tool_get_section(section: str, document_id: Optional[str] = None) -> str:
     db = SessionLocal()
     try:
-        doc = db.query(Document).filter(Document.document_id == document_id).first()
-        if doc is None:
-            return json.dumps({"error": f"No document with id '{document_id}'. Call list_documents for valid ids."})
-
-        selected: List[Tuple[Chunk, str]]
-        if chunk_id is not None:
-            anchor = db.query(Chunk).filter(Chunk.id == chunk_id, Chunk.document_id == doc.id).first()
-            if anchor is None:
-                return json.dumps({"error": f"Chunk {chunk_id} is not part of document '{document_id}'."})
-            window = max(0, min(window, 5))
-            chunks = (
-                db.query(Chunk)
-                .filter(Chunk.document_id == doc.id,
-                        Chunk.chunk_index.between(anchor.chunk_index - window, anchor.chunk_index + window))
-                .order_by(Chunk.chunk_index)
-                .all()
-            )
-            selected = [(chunk, chunk.content) for chunk in chunks]
+        if document_id or db.query(Document).count() == 1:
+            doc, error = _resolve_document(db, document_id)
+            if error:
+                return json.dumps({"error": error})
+            candidates = [doc]
         else:
-            selected = _section_chunks(db, doc, section.strip())
-            if not selected:
-                return json.dumps({"error": f"No section matching '{section}' in {doc.title}. "
-                                            "Use get_table_of_contents to see section headings."})
+            candidates = db.query(Document).order_by(Document.title).all()
 
-        passages, total = [], 0
-        for chunk, text in selected[:MAX_SECTION_CHUNKS]:
-            total += len(text)
-            if passages and total > MAX_SECTION_CHARS:
-                break
-            passages.append({**_passage(chunk, doc), "content": text})
-        return json.dumps({"passages": passages, "truncated": len(passages) < len(selected)})
+        for doc in candidates:
+            selected = _section_chunks(db, doc, section.strip())
+            if selected:
+                return _render_passages(selected, doc)
+        return json.dumps({"error": f"No section heading matches '{section}'. Pass the heading as "
+                                    "'<number> <title>' from a search result or get_table_of_contents."})
+    finally:
+        db.close()
+
+
+def tool_expand_passage(chunk_id: int, window: int = 2) -> str:
+    db = SessionLocal()
+    try:
+        anchor = db.query(Chunk).filter(Chunk.id == chunk_id).first()
+        if anchor is None:
+            return json.dumps({"error": f"No passage with chunk_id {chunk_id}. Use a chunk_id from a search result."})
+        doc = anchor.document
+        window = max(0, min(window, 5))
+        chunks = (
+            db.query(Chunk)
+            .filter(Chunk.document_id == doc.id,
+                    Chunk.chunk_index.between(anchor.chunk_index - window, anchor.chunk_index + window))
+            .order_by(Chunk.chunk_index)
+            .all()
+        )
+        return _render_passages([(chunk, chunk.content) for chunk in chunks], doc)
     finally:
         db.close()

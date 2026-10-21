@@ -87,12 +87,12 @@ def test_table_of_contents_lists_headings_and_filters(corpus):
     assert "7.14 Registering a LoadTimeWeaver" in narrowed["passages"][0]["content"]
 
 
-def test_table_of_contents_unknown_document(corpus):
-    assert "error" in json.loads(navigation.tool_get_table_of_contents("nope"))
+def test_expand_passage_unknown_chunk(corpus):
+    assert "error" in json.loads(navigation.tool_expand_passage(10**9))
 
 
 def test_get_section_by_heading_returns_the_whole_section(corpus):
-    result = json.loads(navigation.tool_get_section(corpus["document_id"], section="7.14 Registering a LoadTimeWeaver"))
+    result = json.loads(navigation.tool_get_section("7.14 Registering a LoadTimeWeaver"))
     text = "\n".join(p["content"] for p in result["passages"])
     # Exactly the section: from its heading to where the next one starts, even though
     # its tail sits in a chunk labelled with the next section.
@@ -106,13 +106,20 @@ def test_get_section_by_chunk_returns_neighbours_in_reading_order(corpus):
     db = corpus["session"]()
     chunk = db.query(Chunk).filter(Chunk.section.like("7.14%")).first()
     db.close()
-    result = json.loads(navigation.tool_get_section(corpus["document_id"], chunk_id=chunk.id, window=1))
+    result = json.loads(navigation.tool_expand_passage(chunk.id, window=1))
     indexes = [p["chunk_index"] for p in result["passages"]]
     assert indexes == sorted(indexes) and chunk.chunk_index in indexes
 
 
-def test_get_section_needs_a_target(corpus):
-    assert "error" in json.loads(navigation.tool_get_section(corpus["document_id"]))
+def test_get_section_unknown_heading(corpus):
+    assert "error" in json.loads(navigation.tool_get_section("99.9 Nothing like this"))
+
+
+def test_single_document_corpus_tolerates_a_wrong_document_id(corpus):
+    """Small models put chapter numbers or made-up ids in document_id; with one document
+    indexed there is nothing to disambiguate, so the call still works."""
+    result = json.loads(navigation.tool_get_table_of_contents(document_id="9", under="9"))
+    assert [e["heading"] for e in result["entries"]] == ["9.8 Spring Validation"]
 
 
 def test_ingestion_records_code_languages(corpus):

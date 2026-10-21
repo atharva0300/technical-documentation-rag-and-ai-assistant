@@ -20,7 +20,8 @@ SEARCH_TOOL = {
 
 
 def _passages(prefix, n=2):
-    return [{"chunk_id": f"{prefix}-{i}", "title": "Spring", "section": f"17.{i} Section",
+    # Integer chunk ids, like passages from the documents themselves.
+    return [{"chunk_id": abs(hash((prefix, i))) % 10**6, "title": "Spring", "section": f"17.{i} Section",
              "document_id": "doc1", "content": f"{prefix} passage {i}"} for i in range(n)]
 
 
@@ -265,3 +266,28 @@ def test_tool_schemas_are_inlined_for_the_model():
     params = to_ollama_tools(manifest)[0]["function"]["parameters"]
     assert "$defs" not in params
     assert params["properties"]["filters"]["anyOf"][0]["properties"] == {"section": {"type": "string"}}
+
+
+
+@pytest.mark.asyncio
+async def test_navigation_only_results_get_a_plain_search_added(monkeypatch, fallback):
+    """If the loop ends with only navigation data (an inventory, a table of contents) for a
+    question that needs the documents, a plain search is added so the answer has passages."""
+    inventory = {"passages": [{"chunk_id": "inventory", "section": "Document inventory", "content": "1 document"}]}
+    monkeypatch.setattr(tool_agent.mcp_client, "list_tools_async", AsyncMock(return_value=[SEARCH_TOOL]))
+
+    async def call_tool(name, arguments):
+        return {"status": "success", "result": json.dumps(inventory)}
+
+    monkeypatch.setattr(tool_agent.mcp_client, "call_tool_async", call_tool)
+    monkeypatch.setattr(tool_agent.llm_gateway, "achat_with_tools", ScriptedModel([
+        {"content": "", "tool_calls": [_call("search_documentation", query="LoadTimeWeaver")]},
+        {"content": "Done.", "tool_calls": []},
+    ]))
+
+    result = await ToolCallingAgent.gather_evidence("explain Registering a LoadTimeWeaver", retrieval_expected=True)
+
+    assert result.used_fallback
+    assert result.fallback_reason == "Tool calls returned no passages from the documents."
+    assert result.evidence[0]["chunk_id"] == "inventory"
+    assert result.evidence[1:] == _passages("fallback")

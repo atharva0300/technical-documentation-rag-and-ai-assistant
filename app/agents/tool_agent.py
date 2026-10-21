@@ -249,11 +249,18 @@ class ToolCallingAgent:
                 messages.append({"role": "tool", "tool_name": call["name"],
                                  "content": _render_for_model(response.get("result"), passages)})
 
-        if not result.evidence and retrieval_expected and (valid_calls == 0 or result.fallback_reason):
-            reason = result.fallback_reason or "Model made no valid tool call for a documentation question."
+        # Passages from the documents themselves (not an inventory, table of contents or
+        # topic overview). Chunk ids of real passages are integers.
+        has_doc_passages = any(isinstance(p.get("chunk_id"), int) for p in result.evidence)
+        if retrieval_expected and not has_doc_passages:
+            reason = result.fallback_reason or (
+                "Model made no valid tool call for a documentation question." if valid_calls == 0
+                else "Tool calls returned no passages from the documents."
+            )
             result.used_fallback = True
             result.fallback_reason = reason
-            result.evidence = await _fallback_search(question, manifest)
-            result.trace.append({"event": "fallback_search", "reason": reason, "results": len(result.evidence)})
+            fallback = await _fallback_search(question, manifest)
+            result.evidence.extend(fallback)
+            result.trace.append({"event": "fallback_search", "reason": reason, "results": len(fallback)})
 
         return result
