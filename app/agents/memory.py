@@ -25,6 +25,35 @@ _ANSWER_CONTEXT_CHARS = 400
 _CONTEXT_TURNS = 4
 
 
+# Words that carry no topic of their own; everything else in the question is a key term
+# the rewrite has to keep.
+_GENERIC_WORDS = {
+    "the", "and", "for", "with", "from", "into", "about", "what", "which", "who", "whom", "when",
+    "where", "why", "how", "does", "did", "are", "was", "were", "can", "could", "should", "would",
+    "will", "you", "your", "me", "please", "give", "show", "tell", "explain", "describe", "list",
+    "use", "using", "used", "need", "want", "get", "make", "some", "any", "all", "more", "also",
+    "there", "this", "that", "these", "those", "its", "they", "them", "same", "example", "examples",
+    "code", "sample", "difference", "between", "work", "works", "mean", "means", "have", "has",
+}
+_KEY_TERM_MIN_KEPT = 0.6
+
+
+def _key_terms(text: str) -> List[str]:
+    words = re.findall(r"[@A-Za-z][\w.@-]*", text.lower())
+    return [w.rstrip(".") for w in words if len(w) >= 3 and w.rstrip(".") not in _GENERIC_WORDS]
+
+
+def _keeps_key_terms(original: str, rewrite: str) -> bool:
+    """A rewrite may add context but must keep what the question was about: e.g. rewriting
+    "explain Registering a LoadTimeWeaver" into the previous question is a failure."""
+    terms = _key_terms(original)
+    if not terms:
+        return True
+    lowered = rewrite.lower()
+    kept = [t for t in terms if t in lowered or t.rstrip("s") in lowered]
+    return len(kept) / len(terms) >= _KEY_TERM_MIN_KEPT
+
+
 @dataclass
 class ContextualizedQuery:
     text: str
@@ -192,5 +221,10 @@ class QueryContextualizer:
         if standalone is None:
             return ContextualizedQuery(text=MemoryLoader.rewrite_query(query, history), method="heuristic",
                                        detail=f"Unusable rewrite: {output[:120]!r}")
+        if not _keeps_key_terms(query, standalone):
+            # The model replaced the question (e.g. with an earlier one) instead of adding
+            # context to it. Keep the user's own question.
+            return ContextualizedQuery(text=MemoryLoader.rewrite_query(query, history), method="heuristic",
+                                       detail=f"Rewrite dropped the question's key terms: {standalone[:120]!r}")
         return ContextualizedQuery(text=standalone, method="llm")
 

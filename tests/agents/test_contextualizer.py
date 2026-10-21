@@ -116,3 +116,18 @@ async def test_answerer_receives_the_standalone_question(monkeypatch):
                              "intent": "single_lookup", "citations": [{"content": "x"}], "retry_count": 0,
                              "step_count": 0, "stream_handler": None})
     assert seen["query"] == "Give me example code for Spring transaction management"
+
+
+@pytest.mark.asyncio
+async def test_rewrite_that_replaces_the_question_is_rejected(model):
+    """Seen with qwen2.5:3b: a new, self-contained question was "rewritten" into the
+    previous one. The user's own question must be kept."""
+    model.return_value = "what documentation do you have?"
+    history = [{"role": "user", "content": "what documentation do you have?"},
+               {"role": "assistant", "content": "I have the Spring Framework Documentation indexed."}]
+
+    result = await QueryContextualizer.contextualize("explain Registering a LoadTimeWeaver", history)
+
+    assert result.method == "heuristic"
+    assert "LoadTimeWeaver" in result.text
+    assert "dropped the question's key terms" in result.detail
