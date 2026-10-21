@@ -44,8 +44,10 @@ ROUTE_EXEMPLARS: Dict[str, List[str]] = {
     "out_of_scope": [
         "write me a poem",
         "tell me a joke",
-        "tell me a joke about Docker",
-        "write a haiku about Kubernetes",
+        # Keep these topic-neutral: exemplars that mention in-scope topics (e.g. "a joke
+        # about Docker") pull genuine questions like "what is docker?" toward a refusal.
+        "tell me a joke about programmers",
+        "write a limerick about my cat",
         "what's the weather today",
         "recommend a recipe for dinner",
         "who won the football game last night",
@@ -91,6 +93,15 @@ ROUTE_EXEMPLARS: Dict[str, List[str]] = {
 
 CONFIDENCE_THRESHOLD = 0.45
 
+# Categories that skip retrieval entirely need a much stricter bar: misrouting a real
+# question there means the user gets a greeting or a refusal instead of an answer.
+# Calibrated for bge-base-en-v1.5, whose cosine similarities sit higher across the board
+# than MiniLM's: genuine questions ("what is spring ?", "what is the elvis operator?")
+# score up to ~0.54 against chitchat/out_of_scope, while real greetings and off-topic
+# requests score ~0.70+. Below this, the planner falls through to the LLM to decide.
+NON_RETRIEVAL_CATEGORIES = {"chitchat", "out_of_scope"}
+NON_RETRIEVAL_THRESHOLD = 0.65
+
 _exemplar_embeddings: Optional[Dict[str, np.ndarray]] = None
 
 
@@ -134,6 +145,9 @@ def route_query(query: str) -> Tuple[Optional[str], float]:
             best_category, best_score = category, score
 
     if best_score < CONFIDENCE_THRESHOLD:
+        return None, best_score
+
+    if best_category in NON_RETRIEVAL_CATEGORIES and best_score < NON_RETRIEVAL_THRESHOLD:
         return None, best_score
 
     return best_category, best_score
