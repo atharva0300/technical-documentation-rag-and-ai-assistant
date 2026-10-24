@@ -274,8 +274,14 @@ Re-uploading a file with the same name replaces its chunks in place.
 # Run the test suite (excludes tests that need a live MCP server/Postgres)
 make test
 
-# Run the end-to-end agent evaluation suite against the live graph
+# Run the 6-query smoke-test evaluation suite against the live graph
 make eval-agent
+
+# Run the full benchmark harness against the real 139-question labeled dataset
+# (data/evaluation/candidates.jsonl) through the live HTTP API end to end.
+# Defaults to a stratified sample (see docs/BENCHMARKS.md for why); pass --full
+# to run every question instead.
+python3 scripts/eval_agent_full.py --sample 40 --seed 42 --out docs/eval_raw_results.json
 
 # Build the frontend production bundle (Vite)
 make build-frontend
@@ -283,6 +289,12 @@ make build-frontend
 # Dataset validation & corpus integrity checks
 make test-dataset
 ```
+
+Measured results from the benchmark harness — planner intent accuracy, answer
+grounding/verification validity rate, and p50/p95 latency, all from real runs against the
+live stack (no mocking) — are written up in [docs/BENCHMARKS.md](docs/BENCHMARKS.md),
+along with the methodology and a real router miscalibration found and fixed while
+measuring them.
 
 ---
 
