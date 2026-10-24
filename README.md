@@ -16,6 +16,24 @@ lexically and via NLI entailment — before triggering a bounded retry on an ung
 
 ---
 
+## Benchmarks
+
+Measured end to end on the live stack (real Ollama model, real Postgres/pgvector, real MCP
+server — no mocking), on a stratified 40-question sample of a 139-question labeled
+evaluation set:
+
+| Metric | Value |
+|---|---|
+| Planner intent accuracy | 80.6% |
+| Grounding / verification validity rate | 86.1% |
+| p50 latency | 55.9s |
+| p95 latency | 83.6s |
+
+Full methodology, per-category breakdown, raw results, and a router miscalibration found
+and fixed while measuring these: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
+---
+
 ## System Architecture
 
 ![Agent graph: memory and follow-up rewriting, router fast path, model-driven MCP tool-calling loop, evidence merger, answerer and verifier](docs/images/agent-graph.png)
