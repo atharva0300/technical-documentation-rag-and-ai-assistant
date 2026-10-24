@@ -1,0 +1,110 @@
+[
+  {
+    "id": "cp009",
+    "category": "comparison",
+    "expected_intent": "comparison",
+    "actual_intent": "comparison",
+    "intent_correct": true,
+    "latency_seconds": 129.257,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "cp003",
+    "category": "comparison",
+    "expected_intent": "comparison",
+    "actual_intent": "comparison",
+    "intent_correct": true,
+    "latency_seconds": 70.08,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "cp011",
+    "category": "comparison",
+    "expected_intent": "comparison",
+    "actual_intent": "single_lookup",
+    "intent_correct": false,
+    "latency_seconds": 76.672,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "cp001",
+    "category": "comparison",
+    "expected_intent": "comparison",
+    "actual_intent": "comparison",
+    "intent_correct": true,
+    "latency_seconds": 105.225,
+    "verification_status": "VALID"
+  },
+  {
+    "id": "cp012",
+    "category": "comparison",
+    "expected_intent": "comparison",
+    "actual_intent": "comparison",
+    "intent_correct": true,
+    "latency_seconds": 75.693,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "cp006",
+    "category": "comparison",
+    "expected_intent": "comparison",
+    "actual_intent": "comparison",
+    "intent_correct": true,
+    "latency_seconds": 72.355,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "mh006",
+    "category": "multi_hop",
+    "expected_intent": "multi_hop",
+    "actual_intent": "single_lookup",
+    "intent_correct": false,
+    "latency_seconds": 92.414,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "mh016",
+    "category": "multi_hop",
+    "expected_intent": "multi_hop",
+    "actual_intent": "multi_hop",
+    "intent_correct": true,
+    "latency_seconds": 155.456,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "mh004",
+    "category": "multi_hop",
+    "expected_intent": "multi_hop",
+    "actual_intent": "single_lookup",
+    "intent_correct": false,
+    "latency_seconds": 172.999,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "mh021",
+    "category": "multi_hop",
+    "expected_intent": "multi_hop",
+    "actual_intent": "multi_hop",
+    "intent_correct": true,
+    "latency_seconds": 165.41,
+    "verification_status": "REFUSE"
+  },
+  {
+    "id": "mh013",
+    "category": "multi_hop",
+    "expected_intent": "multi_hop",
+    "actual_intent": "multi_hop",
+    "intent_correct": true,
+    "latency_seconds": 133.741,
+    "verification_status": "PARTIAL"
+  },
+  {
+    "id": "mh024",
+    "category": "multi_hop",
+    "expected_intent": "multi_hop",
+    "actual_intent": "single_lookup",
+    "intent_correct": false,
+    "latency_seconds": 134.567,
+    "verification_status": "PARTIAL"
+  }
+]
