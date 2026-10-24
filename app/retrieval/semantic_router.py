@@ -60,12 +60,30 @@ ROUTE_EXEMPLARS: Dict[str, List[str]] = {
         "X vs Y, which is better",
         "how does X differ from Y",
         "pros and cons of X versus Y",
+        # Longer, technically-worded phrasings of the same intent: real comparison
+        # questions about a specific feature read like a normal technical question
+        # first, with the comparison framing buried mid-sentence rather than leading
+        # with "compare" or "vs" — these were previously losing to point_lookup/
+        # exhaustive on cosine similarity because the short exemplars above don't
+        # cover that register.
+        "what distinguishes X from Y when it comes to this specific feature",
+        "how do these two approaches differ in terms of behavior and configuration",
+        "when should I use X instead of Y for this use case",
+        "X and Y both solve this problem, how are they different under the hood",
+        "at what point in the process do X and Y diverge in what they do",
     ],
     "multi_hop": [
         "explain X and also how it affects Y",
         "what is X and how does it relate to Y",
         "describe both X and Y and how they interact",
         "walk me through X, then explain how Y depends on it",
+        # Same register gap as comparison above: real multi-hop questions about two
+        # systems/components read as one flowing technical question, often without
+        # the word "and" as an explicit separator between the two halves.
+        "how does this feature in one system connect to the related feature in another",
+        "what is the relationship between X here and Y over there",
+        "if I want to accomplish this, how do X and Y need to work together",
+        "how do changes in one component propagate to or get picked up by the other",
     ],
     "exhaustive": [
         "find every place X is mentioned in the documentation",
